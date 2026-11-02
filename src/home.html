@@ -27,6 +27,7 @@ header > *{pointer-events:auto}
 @keyframes spin{to{transform:rotate(360deg)}}
 .brand p{margin:2px 0 0;font-size:12.5px;opacity:.85}
 .sp{flex:1}
+.tip .narrow{display:none}body.portrait .tip .narrow{display:inline}body.portrait .tip .wide{display:none}
 .hbtn{background:rgba(255,255,255,.92);border:none;border-radius:10px;padding:8px 14px;font:inherit;font-size:14px;color:var(--navy);text-decoration:none;cursor:pointer;box-shadow:0 3px 10px rgba(29,53,87,.15);white-space:nowrap}
 .hbtn:hover{background:#fff8e8}
 .hbtn.primary{background:linear-gradient(#f3cf86,#c8963e);color:#2b1d05;font-weight:700}
@@ -60,6 +61,25 @@ body.list-mode #scene,body.list-mode #labels,body.list-mode .tip{display:none}
 .cdesc{font-size:13px;color:#5c6b80;line-height:1.6}
 .card .level{padding:8px 10px}
 .card .level .num{width:30px;height:30px;font-size:11.5px}
+body.portrait .ilabel{padding:4px 9px 5px}
+body.portrait .ilabel b{font-size:13.5px}
+body.portrait .ilabel.side::after{display:none}
+body.portrait .tip{bottom:14px;font-size:12.5px;white-space:nowrap}
+@media (max-width:640px){
+  header{flex-wrap:nowrap!important}
+  .hbtn .t{display:none}
+  .hbtn{padding:7px 11px;font-size:15px}
+  .brand{padding:6px 12px;border-radius:11px}
+  .brand h1{font-size:15px!important;letter-spacing:.5px}
+  #listView{padding-top:84px!important}
+  #panel{top:auto;left:0;right:0;bottom:0;width:100%;height:62vh;border-radius:18px 18px 0 0;transform:translateY(105%);padding:22px 18px}
+  #panel h2{font-size:22px;margin:8px 0 4px}
+  #panel p{margin:6px 0;font-size:14px}
+  .levels{gap:8px;margin-top:10px}
+  .level{padding:10px 12px}
+  header{padding:10px 12px;gap:8px}
+  .hbtn{padding:7px 10px;font-size:13px}
+}
 @media (max-width:700px){#listView{padding-top:180px}.brand p,#totalProgress{display:none}.brand h1{font-size:16px}header{flex-wrap:wrap}}
 </style>
 </head>
@@ -68,13 +88,13 @@ body.list-mode #scene,body.list-mode #labels,body.list-mode .tip{display:none}
   <div class="brand"><h1><span class="gear">⚙</span> Arduino 機械星系</h1><p>接線、寫程式、闖關——從核心工坊出發，探索七顆電子星球</p></div>
   <span class="sp"></span>
   <span id="totalProgress"></span>
-  <button id="listBtn" class="hbtn">📋 清單 / 3D 切換</button>
-  <a class="hbtn primary" href="lab.html">🛠 自由實驗室</a>
-  <a class="hbtn" href="https://similaitw.github.io/simi-teaching-islands/">← 教學群島</a>
+  <button id="listBtn" class="hbtn" title="清單 / 3D 切換">📋<span class="t"> 清單 / 3D 切換</span></button>
+  <a class="hbtn primary" href="lab.html" title="自由實驗室">🛠<span class="t"> 自由實驗室</span></a>
+  <a class="hbtn" href="https://similaitw.github.io/simi-teaching-islands/" title="回教學群島">←<span class="t"> 教學群島</span></a>
 </header>
 <div id="scene"></div>
 <div id="labels"></div>
-<div class="tip">點選星球開始探索 · 內圈 3 顆星球已開放</div>
+<div class="tip"><span class="wide">點選星球開始探索 · 內圈 3 顆星球已開放</span><span class="narrow">上下滑動穿越星系 · 點星球看關卡</span></div>
 <div id="listView"></div>
 <aside id="panel"></aside>
 <!--BUNDLE-->

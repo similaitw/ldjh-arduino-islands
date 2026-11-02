@@ -43,12 +43,12 @@ $('#listView').innerHTML = `<div class="listgrid">${ISLANDS.map(isl => `
   </div>`).join('')}
   <div class="card" style="--c:#c8963e"><div class="ctitle">🛠 核心工坊 · 自由實驗室</div><div class="cdesc">自由接線、寫程式，內建 8 個範例。</div><a class="go" href="lab.html">進入實驗室 →</a></div>
 </div>`;
-if (window.innerWidth < 640) document.body.classList.add('list-mode');  // 手機預設清單
 $('#listBtn').addEventListener('click', () => document.body.classList.toggle('list-mode'));
 
 // ---------- 3D ----------
 let renderer = null;
-try { renderer = new THREE.WebGLRenderer({ antialias: true }); } catch (e) { document.body.classList.add('list-mode'); }
+const isTouch = matchMedia('(pointer: coarse)').matches;
+try { renderer = new THREE.WebGLRenderer({ antialias: !isTouch, powerPreference: 'high-performance' }); } catch (e) { document.body.classList.add('list-mode'); }
 
 // 程序化貼圖
 function rng(seed) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
@@ -84,7 +84,8 @@ const glowSprite = (color, size, opacity = 1) => {
 
 function initScene() {
   const host = $('#scene');
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(devicePixelRatio, isTouch ? 1.5 : 2));
+  renderer.domElement.style.touchAction = 'none';
   renderer.setClearColor(0x05060f);
   host.appendChild(renderer.domElement);
   const scene = new THREE.Scene();
@@ -96,7 +97,7 @@ function initScene() {
   const fill = new THREE.DirectionalLight(0x9fb8ff, 0.5); fill.position.set(0, 40, 60); scene.add(fill);
 
   // 星空
-  const starGeo = new THREE.BufferGeometry(), N = 5000, pos = new Float32Array(N * 3), col = new Float32Array(N * 3);
+  const starGeo = new THREE.BufferGeometry(), N = isTouch ? 2500 : 5000, pos = new Float32Array(N * 3), col = new Float32Array(N * 3);
   const r0 = rng(42);
   for (let i = 0; i < N; i++) {
     const u = r0() * 2 - 1, th = r0() * Math.PI * 2, rad = 220 + r0() * 180, s = Math.sqrt(1 - u * u);
@@ -154,6 +155,7 @@ function initScene() {
   const ORBITS = [8, 11.5, 15, 21.5, 25.5, 29.5, 33.5];
   const PHASES = [2.35, 0.75, 1.6, 3.55, 5.75, 2.75, 4.65];  // 開放的星球一開始排在前方
   const planets = [];
+  const orbitGroup = new THREE.Group(); scene.add(orbitGroup);
 
   ISLANDS.forEach((isl, i) => {
     const st = STYLE[isl.id], R = ORBITS[i], r = st.size;
@@ -213,7 +215,7 @@ function initScene() {
     }
     // 軌道線
     const orbit = new THREE.Mesh(new THREE.RingGeometry(R - 0.03, R + 0.03, 160), new THREE.MeshBasicMaterial({ color: isl.locked ? 0x5a6278 : 0xc8963e, transparent: true, opacity: isl.locked ? 0.25 : 0.5, side: THREE.DoubleSide }));
-    orbit.rotation.x = -Math.PI / 2; scene.add(orbit);
+    orbit.rotation.x = -Math.PI / 2; orbitGroup.add(orbit);
     const speed = 0.5 / Math.pow(R, 1.5);
     g.userData = { key: isl.id, R, speed, phase: PHASES[i], radius: r * 1.3, body };
     scene.add(g); planets.push(g);
@@ -230,6 +232,25 @@ function initScene() {
   }
   scene.add(rocks);
   animated.push(t => { rocks.rotation.y = t * 0.01; });
+
+  // ---------- 直式手機版：星際航道（星球由上往下排列，上下滑動探索） ----------
+  const lanePos = planets.map((g, i) => new THREE.Vector3(i % 2 ? 1.7 : -1.7, -9.5 - i * 7.5, 0));
+  const laneGroup = new THREE.Group(); scene.add(laneGroup);
+  const laneCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), ...lanePos]);
+  const laneLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(laneCurve.getPoints(160)), new THREE.LineDashedMaterial({ color: 0xc8963e, dashSize: 0.5, gapSize: 0.35, transparent: true, opacity: 0.7 }));
+  laneLine.computeLineDistances(); laneGroup.add(laneLine);
+  const gateY = (lanePos[2].y + lanePos[3].y) / 2;
+  const gate = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.16, 0), M(0x8a7d6e), 170);
+  for (let i = 0; i < 170; i++) {
+    const a = r1() * Math.PI * 2, rr = 3.6 + r1() * 1.2;
+    dummy.position.set(Math.cos(a) * rr, gateY + (r1() - 0.5) * 0.5, Math.sin(a) * rr * 0.5);
+    dummy.rotation.set(r1() * 6, r1() * 6, r1() * 6); dummy.scale.setScalar(0.5 + r1() * 1.5); dummy.updateMatrix();
+    gate.setMatrixAt(i, dummy.matrix);
+  }
+  laneGroup.add(gate);
+  animated.push(t => { gate.rotation.y = t * 0.05; });
+  const LANE_TOP = -5, LANE_BOTTOM = lanePos[lanePos.length - 1].y + 4;
+  let scrollY = LANE_TOP, scrollTarget = LANE_TOP, scrollVel = 0;
 
   // 流星
   const meteor = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.12, 6, 6), new THREE.MeshBasicMaterial({ color: 0xcfe6ff, transparent: true, opacity: 0 }));
@@ -268,40 +289,72 @@ function initScene() {
   function focus(g) { focused = g; openPanel(g.userData.key); }
   onPanelClose = () => { focused = null; };
 
-  const ray = new THREE.Raycaster(), mouse = new THREE.Vector2(-9, -9);
-  let hovered = null, downAt = null;
-  renderer.domElement.addEventListener('pointermove', e => {
-    const b = renderer.domElement.getBoundingClientRect();
-    mouse.set(((e.clientX - b.left) / b.width) * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1);
+  const ray = new THREE.Raycaster(), mouse = new THREE.Vector2(-9, -9), ndc = new THREE.Vector2();
+  let hovered = null, downAt = null, dragging = false, lastY = 0, lastT = 0;
+  const toNdc = (e, v) => { const b = renderer.domElement.getBoundingClientRect(); return v.set(((e.clientX - b.left) / b.width) * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1); };
+  function pick(v) {
+    ray.setFromCamera(v, camera);
+    for (const hit of ray.intersectObjects(all, true)) { let o = hit.object; if (o.isSprite) continue; while (o && !all.includes(o)) o = o.parent; if (o) return o; }
+    return null;
+  }
+  const unitsPerPx = () => 2 * camPos.distanceTo(camLook) * Math.tan(camera.fov * Math.PI / 360) / host.clientHeight;
+  const el = renderer.domElement;
+  el.addEventListener('pointermove', e => {
+    if (e.pointerType === 'mouse') toNdc(e, mouse);
+    if (dragging && portrait) {
+      const dy = e.clientY - lastY, now = performance.now();
+      scrollTarget = clampLane(scrollTarget + dy * unitsPerPx());
+      scrollVel = dy * unitsPerPx() / Math.max(1, now - lastT) * 16;
+      lastY = e.clientY; lastT = now;
+      if (Math.abs(e.clientY - downAt[1]) > 6 && focused) closePanel();
+    }
   });
-  renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
-  renderer.domElement.addEventListener('click', e => {
+  el.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; dragging = true; lastY = e.clientY; lastT = performance.now(); scrollVel = 0; el.setPointerCapture?.(e.pointerId); });
+  const endDrag = () => { dragging = false; };
+  el.addEventListener('pointerup', endDrag); el.addEventListener('pointercancel', endDrag);
+  el.addEventListener('wheel', e => { if (portrait) { scrollTarget = clampLane(scrollTarget - e.deltaY * 0.02); e.preventDefault(); } }, { passive: false });
+  el.addEventListener('click', e => {
     if (downAt && Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
-    if (hovered) focus(hovered); else if (focused) closePanel();
+    const o = pick(toNdc(e, ndc));
+    if (o) focus(o); else if (focused) closePanel();
   });
+  const clampLane = v => Math.min(LANE_TOP, Math.max(LANE_BOTTOM, v));
 
-  let fit = 1;
+  let fit = 1, portrait = false;
   function resize() {
     const w = host.clientWidth, h = host.clientHeight;
     renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
     fit = Math.min(2.4, Math.max(1, 1.6 / camera.aspect));
+    portrait = camera.aspect < 0.85;
+    document.body.classList.toggle('portrait', portrait);
+    orbitGroup.visible = rocks.visible = !portrait;
+    laneGroup.visible = portrait;
   }
   window.addEventListener('resize', resize); resize();
 
   const clock = new THREE.Timer(), tmp = new THREE.Vector3(), want = new THREE.Vector3(), wantLook = new THREE.Vector3();
   function tick() {
-    clock.update(); const t = clock.getElapsed();
-    planets.forEach(g => {
+    clock.update(); const t = clock.getElapsed(), dt = Math.min(clock.getDelta(), 0.1);
+    const ease = k => 1 - Math.exp(-k * dt);  // 與畫面更新率無關的平滑
+    const base = portrait ? 0.82 : 1;
+    planets.forEach((g, i) => {
       const { R, speed, phase } = g.userData, a = phase + t * speed;
-      g.position.set(Math.cos(a) * R, 0, Math.sin(a) * R);
-      const s = g === hovered || g === focused ? 1.12 : 1; g.scale.lerp(tmp.set(s, s, s), 0.12);
+      if (portrait) g.position.copy(lanePos[i]).setY(lanePos[i].y + Math.sin(t * 0.8 + i) * 0.15);
+      else g.position.set(Math.cos(a) * R, 0, Math.sin(a) * R);
+      const s = base * (g === hovered || g === focused ? 1.12 : 1); g.scale.lerp(tmp.set(s, s, s), ease(8));
     });
-    core.scale.lerp(tmp.setScalar(hovered === core ? 1.05 : 1), 0.12);
+    core.scale.lerp(tmp.setScalar((portrait ? 0.62 : 1) * (hovered === core ? 1.05 : 1)), ease(8));
+    if (portrait && !dragging) { scrollTarget = clampLane(scrollTarget + scrollVel * dt * 60); scrollVel *= Math.pow(0.92, dt * 60); }
+    scrollY += (scrollTarget - scrollY) * ease(10);
     animated.forEach(f => f(t));
     stars.rotation.y = t * 0.003;
 
     // 鏡頭：平常俯瞰全星系，聚焦時飛近目標
-    if (focused) {
+    if (portrait) {
+      if (focused) { const p = focused.position; scrollTarget = clampLane(p.y - 2.9); }  // 星球停在上方，下方留給面板
+      want.set(0, scrollY + 5, focused ? 15 : 19);
+      wantLook.set(0, scrollY - 1.2, 0);
+    } else if (focused) {
       const p = focused.position, k = focused.userData.radius;
       const side = window.innerWidth > 800 ? 0.32 : 0; // 面板在右側時把目標放左邊一點
       want.set(p.x, p.y + k * 2.2 + 2, p.z + k * 3.6 + 4);
@@ -310,22 +363,24 @@ function initScene() {
       want.copy(camHome).multiplyScalar(fit).add(tmp.set(mouse.x * 2, mouse.y * 1.5, 0));
       wantLook.set(0, -2, 0);
     }
-    camPos.lerp(want, 0.05); camLook.lerp(wantLook, 0.06);
+    camPos.lerp(want, ease(portrait ? 7 : 3.2)); camLook.lerp(wantLook, ease(portrait ? 8 : 3.8));
     camera.position.copy(camPos); camera.lookAt(camLook);
 
-    ray.setFromCamera(mouse, camera);
-    const hits = ray.intersectObjects(all, true);
-    let h = null;
-    for (const hit of hits) { let o = hit.object; if (o.isSprite) continue; while (o && !all.includes(o)) o = o.parent; if (o) { h = o; break; } }
-    hovered = h; renderer.domElement.style.cursor = h ? 'pointer' : 'default';
+    hovered = isTouch ? null : pick(mouse); el.style.cursor = hovered ? 'pointer' : 'default';
 
     const w = host.clientWidth, hh = host.clientHeight;
     labels.forEach(({ g, d }) => {
-      tmp.copy(g.position); tmp.y += g.userData.radius + 1.2;
+      // 直式：標籤放在星球外側（朝畫面中央），避免上下重疊
+      const sideLabel = portrait && g !== core;
+      tmp.copy(g.position);
+      if (sideLabel) tmp.x += Math.sign(-g.position.x) * (g.userData.radius * 0.82 + 0.3);
+      else tmp.y += g.userData.radius * (portrait ? 0.62 : 1) + 1.2;
       tmp.project(camera);
-      const vis = tmp.z < 1;
+      const vis = tmp.z < 1 && tmp.y > -1.2 && tmp.y < 1.2;
       d.style.display = vis ? '' : 'none';
-      d.style.transform = `translate(-50%,-100%) translate(${(tmp.x * 0.5 + 0.5) * w}px, ${(-tmp.y * 0.5 + 0.5) * hh}px)`;
+      const anchor = !sideLabel ? 'translate(-50%,-100%)' : g.position.x < 0 ? 'translate(0,-50%)' : 'translate(-100%,-50%)';
+      d.style.transform = `translate(${(tmp.x * 0.5 + 0.5) * w}px, ${(-tmp.y * 0.5 + 0.5) * hh}px) ${anchor}`;
+      d.classList.toggle('side', sideLabel);
       d.classList.toggle('hover', g === hovered || g === focused);
     });
     renderer.render(scene, camera);
