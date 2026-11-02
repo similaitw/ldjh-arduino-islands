@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arduino 機械浮島 · 線上實驗室</title>
+<style>
+:root{--sky1:#bfe3ff;--sky2:#eaf6ff;--navy:#1d3557;--brass:#c8963e;--brass2:#e7c27d;--panel:#ffffff;--line:#d9e2ec;--muted:#6b7a90;--ok:#2e7d32}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;color:#1f2a37;background:var(--sky2)}
+button{font:inherit;cursor:pointer}
+header{height:54px;display:flex;align-items:center;gap:10px;padding:0 14px;background:linear-gradient(90deg,#1d3557,#2b4f7e 55%,#3a6ea5);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.15);position:relative;z-index:5}
+header h1{font-size:17px;margin:0 8px 0 0;white-space:nowrap;letter-spacing:.5px}
+header h1 .gear{display:inline-block;color:var(--brass2);animation:spin 8s linear infinite}
+body.running header h1 .gear{animation-duration:1.2s}
+@keyframes spin{to{transform:rotate(360deg)}}
+header .sp{flex:1}
+.hbtn{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:6px 11px;font-size:13.5px;white-space:nowrap}
+.hbtn:hover{background:rgba(255,255,255,.22)}
+#runBtn{background:linear-gradient(#f3cf86,#c8963e);color:#2b1d05;border:none;font-weight:700;padding:7px 16px;box-shadow:0 2px 0 #8c6524}
+#stopBtn{background:#e05d5d;border:none}
+select.hbtn option{color:#000}
+#status{font-size:12.5px;opacity:.85;min-width:84px}
+body.running #status{color:#9ff59f;opacity:1}
+main{display:grid;grid-template-columns:216px minmax(380px,1fr) minmax(400px,40%);height:calc(100% - 54px)}
+aside{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+aside h3,.ptitle{margin:0;padding:9px 12px;font-size:13px;color:var(--navy);background:#f3f7fb;border-bottom:1px solid var(--line);letter-spacing:.5px}
+#library{overflow:auto;flex:1;padding:4px 0}
+#library summary{padding:7px 12px;font-size:13.5px;font-weight:600;cursor:pointer;color:var(--navy)}
+.parts{display:flex;flex-direction:column;gap:4px;padding:2px 10px 8px}
+.part{text-align:left;border:1px solid var(--line);background:#fff;border-radius:7px;padding:6px 9px;font-size:13px}
+.part:hover{border-color:var(--brass);background:#fffaf0}
+.part.soon{color:#a0abba;background:#f7f9fb;cursor:not-allowed;display:flex;justify-content:space-between;align-items:center}
+.part small{font-size:10.5px;background:#eef2f6;border-radius:4px;padding:1px 4px}
+#inspector{border-top:1px solid var(--line);padding:10px 12px;font-size:13px;max-height:46%;overflow:auto}
+#inspector h4{margin:0 0 4px;color:var(--navy)}
+.muted{color:var(--muted);font-size:12px;line-height:1.55;margin:3px 0 6px}
+.prop{display:block;margin:8px 0;font-size:13px}
+.prop input[type=range]{width:100%}
+.prop b{color:var(--brass);font-variant-numeric:tabular-nums}
+.btn{display:block;width:100%;margin-top:8px;border:1px solid var(--line);background:#f7f9fb;border-radius:7px;padding:6px}
+.btn.danger{color:#c0392b}
+.colors{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}
+.swatch{width:20px;height:20px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #c5cfdb}
+.swatch.on{box-shadow:0 0 0 2px var(--brass)}
+.center{display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--line)}
+.ctool{display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f3f7fb;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+.ctool .hint{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tbtn{border:1px solid var(--line);background:#fff;border-radius:6px;padding:3px 8px;font-size:12.5px}
+#canvas{flex:1;overflow:auto;position:relative;min-height:0;background:
+ radial-gradient(#c9d8e6 1px,transparent 1px) 0 0/16px 16px,
+ linear-gradient(#e6f3ff,#f6fbff)}
+#stage{position:relative;width:1400px;height:900px}
+.comp{position:absolute;z-index:1}
+.comp-label{height:20px;font-size:11px;line-height:20px;padding:0 6px;background:rgba(29,53,87,.08);color:var(--navy);border-radius:5px 5px 0 0;display:inline-block;cursor:grab;user-select:none;white-space:nowrap}
+.comp-label:active{cursor:grabbing}
+.comp > :not(.comp-label){display:block}
+.comp.selected .comp-label{background:var(--brass);color:#fff}
+.comp.selected{outline:2px dashed var(--brass);outline-offset:3px;border-radius:4px}
+#wires{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;overflow:visible}
+.wire{fill:none;stroke-width:3;stroke-linecap:round;pointer-events:none;opacity:.92}
+.wire.selected{stroke-width:5;filter:drop-shadow(0 0 3px #c8963e)}
+.wire.pending{stroke-dasharray:6 5}
+.wire-hit{fill:none;stroke:transparent;stroke-width:12;pointer-events:stroke;cursor:pointer}
+#pins{position:absolute;inset:0;z-index:3;pointer-events:none}
+.pin{position:absolute;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;pointer-events:auto;cursor:crosshair;background:rgba(200,150,62,0);transition:.1s}
+.pin:hover,.pin.active{background:rgba(200,150,62,.85);box-shadow:0 0 0 3px rgba(200,150,62,.35)}
+.pin:hover::after{content:attr(data-label);position:absolute;left:12px;top:-6px;background:#1d3557;color:#fff;font-size:11px;padding:1px 6px;border-radius:4px;white-space:nowrap}
+#warnings{font-size:12.5px;padding:5px 10px;background:#fff8e6;border-top:1px solid #f0dca8;max-height:84px;overflow:auto}
+#warnings.empty{background:#effaf0;border-top-color:#cfe9d2;color:var(--ok)}
+.warn{padding:1px 0}.warn.error{color:#c0392b;font-weight:600}
+.serialbox{height:30%;min-height:130px;display:flex;flex-direction:column;background:#0f1b2b;color:#cfe3ff}
+.serialbar{display:flex;align-items:center;gap:6px;padding:4px 8px;font-size:12px;background:#16263b;color:#9fb7d4}
+.serialbar form{display:flex;flex:1;gap:4px}
+.serialbar input[type=text]{flex:1;background:#0f1b2b;border:1px solid #2c4463;color:#fff;border-radius:5px;padding:3px 6px;font-size:12px}
+.serialbar button{background:#2c4463;color:#dfeaff;border:none;border-radius:5px;padding:3px 8px;font-size:12px}
+#serial{flex:1;margin:0;padding:6px 10px;overflow:auto;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap}
+.right{display:flex;flex-direction:column;min-width:0;min-height:0;background:#fff}
+.tabs{display:flex;align-items:center;background:#f3f7fb;border-bottom:1px solid var(--line);padding:0 6px}
+.tab{border:none;background:none;padding:9px 14px;font-size:14px;color:var(--muted);border-bottom:3px solid transparent}
+.tab.active{color:var(--navy);font-weight:700;border-bottom-color:var(--brass)}
+.tabs .sp{flex:1}
+.pane{flex:1;display:flex;flex-direction:column;min-height:0}
+.pane[hidden]{display:none}
+#blocklyDiv{flex:1;min-height:200px}
+.prevhead{display:flex;align-items:center;justify-content:space-between;padding:4px 10px;font-size:12px;color:var(--muted);background:#f3f7fb;border-top:1px solid var(--line)}
+#preview{height:34%;min-height:110px;overflow:auto;border-top:1px solid var(--line)}
+#editor{flex:1;min-height:0;overflow:auto}
+.cm-editor{height:100%;font-size:13.5px}
+#preview .cm-editor{background:#fbfcfe}
+#dialog{position:fixed;inset:0;background:rgba(15,27,43,.45);display:flex;align-items:center;justify-content:center;z-index:1000}
+#dialog[hidden]{display:none}
+.dbox{background:#fff;border-radius:12px;padding:18px 20px;width:min(460px,90vw);box-shadow:0 10px 40px rgba(0,0,0,.3)}
+.dbox textarea{width:100%;height:180px;font:12px ui-monospace,monospace;margin-top:8px}
+.dbtns{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.dbtns button{border:1px solid var(--line);border-radius:7px;padding:6px 14px;background:#f7f9fb}
+#dialogOk{background:var(--navy);color:#fff;border:none}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#1d3557;color:#fff;padding:9px 16px;border-radius:9px;font-size:13.5px;opacity:0;transition:.25s;pointer-events:none;z-index:1001}
+#toast.show{opacity:1;transform:translateX(-50%)}
+@media (max-width:1100px){main{grid-template-columns:180px 1fr 44%}header h1 small{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="gear">⚙</span> Arduino 機械浮島 <small style="font-weight:400;opacity:.75">· 線上實驗室</small></h1>
+  <select id="examples" class="hbtn" title="載入範例"><option value="">📚 範例…</option></select>
+  <button id="runBtn" class="hbtn">▶ 執行</button>
+  <button id="stopBtn" class="hbtn">⏹ 停止</button>
+  <span id="status">○ 已停止</span>
+  <span class="sp"></span>
+  <button id="muteBtn" class="hbtn" title="聲音開關">🔊</button>
+  <button id="inoBtn" class="hbtn" title="下載 / 複製 .ino">⬇ .ino</button>
+  <button id="exportBtn" class="hbtn">💾 匯出</button>
+  <button id="importBtn" class="hbtn">📂 匯入</button>
+  <input id="importFile" type="file" accept=".json,.ino" hidden>
+  <button id="clearBtn" class="hbtn" title="清空">🗑</button>
+</header>
+<main>
+  <aside>
+    <h3>🧰 零件庫</h3>
+    <div id="library"></div>
+    <div class="ptitle">🔧 零件屬性</div>
+    <div id="inspector"></div>
+  </aside>
+  <section class="center">
+    <div class="ctool">
+      <span>電線顏色</span><span id="wireColors" class="colors" style="margin:0"></span>
+      <button id="delSel" class="tbtn">🗑 刪除選取</button>
+      <span class="hint">點腳位 → 再點另一個腳位完成接線；拖曳零件上方標籤移動</span>
+    </div>
+    <div id="canvas"><div id="stage"><svg id="wires"></svg><div id="pins"></div></div></div>
+    <div id="warnings" class="empty"></div>
+    <div class="serialbox">
+      <div class="serialbar">
+        <span>🖥 序列埠監控</span>
+        <form id="serialSend"><input id="serialInput" type="text" placeholder="輸入文字送給 Arduino（Serial.read）"><button>送出</button></form>
+        <label><input id="autoscroll" type="checkbox" checked> 自動捲動</label>
+        <button id="serialClear" type="button">清除</button>
+      </div>
+      <pre id="serial"></pre>
+    </div>
+  </section>
+  <section class="right">
+    <div class="tabs">
+      <button class="tab active" data-mode="blocks">🧩 積木</button>
+      <button class="tab" data-mode="code">⌨️ 程式碼</button>
+      <span class="sp"></span>
+    </div>
+    <div id="blocksPane" class="pane">
+      <div id="blocklyDiv"></div>
+      <div class="prevhead"><span>📄 積木對應的 Arduino C 程式碼（唯讀）</span><button id="toCode" class="tbtn">轉到程式碼模式編輯 →</button></div>
+      <div id="preview"></div>
+    </div>
+    <div id="codePane" class="pane" hidden>
+      <div id="editor"></div>
+    </div>
+  </section>
+</main>
+<div id="dialog" hidden><div class="dbox"><div id="dialogMsg"></div><textarea id="dialogText" hidden readonly></textarea>
+  <div class="dbtns"><button id="dialogCancel">取消</button><button id="dialogOk">確定</button></div></div></div>
+<div id="toast"></div>
+<!--BUNDLE-->
+</body>
+</html>
