@@ -24,7 +24,7 @@ const fastYield = (() => {
 export class Runtime {
   constructor({ circuit, onSerial, onError, onWarn, onState }) {
     this.circuit = circuit; circuit.runtime = this;
-    this.onSerial = onSerial; this.onError = onError; this.onWarn = onWarn; this.onState = onState || (() => {});
+    this.onSerial = t => { this.serialLog += t; if (this.serialLog.length > 50000) this.serialLog = this.serialLog.slice(-30000); onSerial(t); }; this.onError = onError; this.onWarn = onWarn; this.onState = onState || (() => {});
     this.reset();
     this.audio = null; this.osc = null; this.muted = false;
   }
@@ -32,6 +32,7 @@ export class Runtime {
   reset() {
     this.pins = Array.from({ length: 20 }, () => ({ mode: 'INPUT', value: 0, pwm: null }));
     this.tones = {}; this.servos = []; this.rx = '';
+    this.serialLog = ''; this.writeLog = []; this.lastError = null;
     this.running = false; this.stopped = true; this.warned = new Set();
     this.updateSound();
   }
@@ -44,6 +45,11 @@ export class Runtime {
     return s.pwm != null ? s.pwm / 255 * 5 : s.value * 5;
   }
 
+  logWrite(p, v) {
+    this.writeLog.push({ t: performance.now(), p, v });
+    if (this.writeLog.length > 20000) this.writeLog.splice(0, 10000);
+  }
+
   servoOnPin(p) { return this.servos.find(s => s.pin === p); }
 
   // ---------- 執行 ----------
@@ -51,7 +57,7 @@ export class Runtime {
     this.stop(); this.reset();
     let js, info;
     try { ({ js, info } = transpile(code)); }
-    catch (e) { this.onError(`轉譯錯誤：${e.message}`); return; }
+    catch (e) { this.lastError = e.message; this.onError(`轉譯錯誤：${e.message}`); return; }
     info.warnings.forEach(w => this.onWarn(w));
     const api = this.api();
     let prog;
@@ -78,6 +84,7 @@ export class Runtime {
       .replace(/missing \) after argument list/, '函式呼叫的括號或逗號有問題（例如少了逗號或右括號）')
       .replace(/Unexpected end of input/, '程式不完整，可能少了右大括號 }')
       .replace(/Invalid or unexpected token/, '出現無法辨識的符號（檢查引號是否成對）');
+    this.lastError = msg;
     this.onError(`${e instanceof SyntaxError ? '語法錯誤' : '執行錯誤'}：${msg}`);
     console.debug(js);
     this.stop();
@@ -212,7 +219,9 @@ export class Runtime {
           rt.warnOnce('dw' + p, `腳位 ${pinNumberToName(p)} 尚未設定 pinMode(${pinNumberToName(p)}, OUTPUT) 就 digitalWrite，真實 Arduino 上 LED 會很暗或不亮`);
           return;
         }
-        s.value = v ? 1 : 0; s.pwm = null;
+        const nv = v ? 1 : 0;
+        if (nv !== s.value || s.pwm != null) rt.logWrite(p, nv * 255);
+        s.value = nv; s.pwm = null;
       },
       digitalRead(p) {
         rt.checkPin(p, 'digitalRead');
@@ -241,6 +250,7 @@ export class Runtime {
           rt.warnOnce('pwm' + p, `腳位 ${pinNumberToName(p)} 不支援 PWM（Uno 只有 ~3、5、6、9、10、11），analogWrite 只會輸出 HIGH 或 LOW`);
           s.pwm = null; s.value = v >= 128 ? 1 : 0; return;
         }
+        if (s.pwm !== v) rt.logWrite(p, v);
         s.pwm = v;
       },
       delay: ms => rt.sleep(ms),

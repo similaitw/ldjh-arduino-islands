@@ -4,12 +4,17 @@ import { Circuit } from './circuit.js';
 import { Runtime } from './runtime.js';
 import { PARTS, CATEGORIES, COMING } from './parts.js';
 import { EXAMPLES, EMPTY_BLOCKS, DEFAULT_CODE } from './examples.js';
+import { LEVELS, ISLANDS, levelById, nextLevel, getProgress, markDone } from './levels.js';
+import { runCheck } from './checker.js';
 import { EditorView, basicSetup } from 'codemirror';
 import { EditorState } from '@codemirror/state';
 import { cpp } from '@codemirror/lang-cpp';
 
 const $ = s => document.querySelector(s);
-const STORE = 'ardu-lab-v1';
+const levelId = (location.hash.match(/^#level-(\d+-\d+)$/) || [])[1];
+const LEVEL = levelId ? levelById(levelId) : null;
+const STORE = LEVEL ? 'ardu-level-' + LEVEL.id : 'ardu-lab-v1';
+window.addEventListener('hashchange', () => location.reload());
 let mode = 'blocks';
 let suppressSave = false;
 
@@ -352,8 +357,93 @@ buildLibrary(); buildWireColors(); buildExamples(); renderInspector(null);
 let saved = null;
 try { saved = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch (e) { saved = null; }
 customElements.whenDefined('wokwi-arduino-uno').then(() => {
-  if (saved?.circuit) { try { restore(saved); } catch (e) { loadExample(EXAMPLES[0]); } }
+  if (LEVEL) {
+    initLesson();
+    if (saved?.circuit) { try { restore(saved); } catch (e) { loadLevelStarter(); } }
+    else loadLevelStarter();
+  } else if (saved?.circuit) { try { restore(saved); } catch (e) { loadExample(EXAMPLES[0]); } }
   else loadExample(EXAMPLES[0]);
   requestAnimationFrame(frame);
 });
+
+// ---------- 關卡模式 ----------
+function loadLevelStarter(useSolution = false) {
+  runtime.stop();
+  suppressSave = true;
+  const st = LEVEL.starter, sol = LEVEL.solution;
+  circuit.load(useSolution && sol.circuit ? sol.circuit : st.circuit);
+  ws.clear();
+  Blockly.serialization.workspaces.load(st.blocks || EMPTY_BLOCKS, ws);
+  if (useSolution) { setEditorCode(sol.code); setMode('code'); }
+  else { setEditorCode(st.code || DEFAULT_CODE); setMode(st.mode); }
+  updatePreview();
+  suppressSave = false; scheduleSave();
+  runtimeWarnings.length = 0; lastWarnKey = null;
+  serialEl.textContent = '';
+}
+
+function initLesson() {
+  document.body.classList.add('lesson-mode');
+  const island = ISLANDS.find(i => i.id === LEVEL.island);
+  const siblings = LEVELS.filter(l => l.island === LEVEL.island);
+  const next = nextLevel(LEVEL.id);
+  document.title = `${LEVEL.id} ${LEVEL.title} · Arduino 機械浮島`;
+  const box = $('#lesson');
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="lhead">
+      <span class="lisland" style="background:${island.color}">${island.icon} 第 ${island.id} 島 · ${island.name}</span>
+      <b class="ltitle">${LEVEL.id}　${LEVEL.title}</b>
+      <span class="ldots">${siblings.map(l => `<a href="#level-${l.id}" class="${l.id === LEVEL.id ? 'cur' : ''} ${getProgress()[l.id] ? 'done' : ''}" title="${l.id} ${l.title}">${getProgress()[l.id] ? '✓' : l.id.split('-')[1]}</a>`).join('')}</span>
+      <button id="lToggle" class="tbtn" title="收合">▾</button>
+    </div>
+    <div class="lbody">
+      <ol class="lgoal">${LEVEL.goal.map(g => `<li>${g}</li>`).join('')}</ol>
+      <div class="lbtns">
+        <button id="lCheck" class="lcheck">✅ 檢查任務</button>
+        <button id="lHint" class="tbtn">💡 提示 <span id="lHintN"></span></button>
+        <button id="lSol" class="tbtn">📖 參考解答</button>
+        <button id="lReset" class="tbtn">↺ 重設關卡</button>
+        ${next ? `<a id="lNext" class="tbtn" href="#level-${next.id}">下一關 ${next.id} →</a>` : '<a class="tbtn" href="index.html">🏝 回浮島地圖</a>'}
+      </div>
+      <div id="lHints" class="lhints"></div>
+      <div id="lResult" class="lresult" hidden></div>
+    </div>`;
+  $('#lToggle').addEventListener('click', () => { box.classList.toggle('collapsed'); $('#lToggle').textContent = box.classList.contains('collapsed') ? '▸' : '▾'; });
+  let hintN = 0;
+  const updHint = () => { $('#lHintN').textContent = `${hintN}/${LEVEL.hints.length}`; };
+  updHint();
+  $('#lHint').addEventListener('click', () => {
+    if (hintN >= LEVEL.hints.length) return;
+    const d = document.createElement('div'); d.textContent = `💡 ${LEVEL.hints[hintN++]}`; $('#lHints').appendChild(d); updHint();
+  });
+  $('#lReset').addEventListener('click', () => showConfirm('恢復這一關的起始電路與程式？你目前的作品會被清除。', () => loadLevelStarter()));
+  $('#lSol').addEventListener('click', () => showConfirm('載入參考解答？（建議先自己試試看，或先看提示）你目前的作品會被取代。', () => loadLevelStarter(true)));
+  $('#lCheck').addEventListener('click', doCheck);
+}
+
+let checking = false;
+async function doCheck() {
+  if (checking) return;
+  checking = true;
+  const btn = $('#lCheck'), res = $('#lResult');
+  btn.disabled = true; btn.textContent = '⏳ 檢查中…'; $('#runBtn').disabled = true;
+  res.hidden = false; res.className = 'lresult'; res.innerHTML = '';
+  runtimeWarnings.length = 0; lastWarnKey = null; serialEl.textContent = ''; serialBuf = '';
+  const addStep = st => { const d = document.createElement('div'); d.className = st.ok ? 'ok' : 'bad'; d.textContent = (st.ok ? '✔ ' : '✘ ') + st.msg; res.appendChild(d); res.scrollTop = res.scrollHeight; };
+  const r = await runCheck(LEVEL, { circuit, runtime, code: currentCode(), onStep: addStep });
+  if (r.ok) {
+    markDone(LEVEL.id);
+    res.classList.add('pass');
+    const next = nextLevel(LEVEL.id);
+    res.insertAdjacentHTML('beforeend', `<div class="cheer">🎉 任務完成！${next ? `<a href="#level-${next.id}">前往下一關 ${next.id}「${next.title}」→</a>` : '<a href="index.html">回到浮島地圖 →</a>'}</div>`);
+    document.querySelectorAll('.ldots a.cur').forEach(a => { a.classList.add('done'); a.textContent = '✓'; });
+  } else {
+    res.classList.add('fail');
+    res.insertAdjacentHTML('beforeend', '<div class="cheer">還差一點！修改後再按一次「檢查任務」。需要的話可以看提示。</div>');
+  }
+  res.scrollTop = res.scrollHeight;
+  btn.disabled = false; btn.textContent = '✅ 檢查任務'; $('#runBtn').disabled = false;
+  checking = false;
+}
 window.addEventListener('resize', () => Blockly.svgResize(ws));

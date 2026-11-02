@@ -139,8 +139,9 @@ export function transpile(source) {
   if (info.intVars.size) s = wrapIntAssignments(s, info.intVars);
   s = s.replace(/\u0001/g, '');
 
-  // String 方法差異
+  // String 方法差異（Arduino 的 trim/toUpperCase/toLowerCase 會直接修改字串）
   s = s.replace(/\.length\(\s*\)/g, '.length');
+  s = s.replace(/(^|[;{}\n]\s*)(\w+)\.(trim|toUpperCase|toLowerCase)\(\s*\)\s*;/g, '$1$2 = $2.$3();');
 
   // 非同步呼叫：delay、使用者函式
   const asyncNames = [...ASYNC_BUILTINS, ...info.functions];

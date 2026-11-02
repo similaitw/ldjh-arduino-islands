@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arduino 機械浮島</title>
+<meta name="description" content="給自學進階學生的 Arduino 線上模擬課程：積木與 Arduino C 雙介面、可互動的感測器、自動檢查關卡。">
+<style>
+:root{--navy:#1d3557;--brass:#c8963e;--brass2:#e7c27d}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;color:#1f2a37}
+body{background:linear-gradient(180deg,#7fbff0 0%,#bfe3ff 45%,#fde9c8 100%)}
+#scene{position:fixed;inset:0}
+#labels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+.ilabel{position:absolute;left:0;top:0;pointer-events:auto;border:none;cursor:pointer;background:rgba(255,255,255,.92);border-radius:12px;padding:5px 12px 6px;box-shadow:0 4px 14px rgba(29,53,87,.18);display:flex;flex-direction:column;align-items:center;font:inherit;transition:background .15s, box-shadow .15s;white-space:nowrap}
+.ilabel b{font-size:15px;color:var(--navy)}
+.ilabel small{font-size:11.5px;color:#5c6b80}
+.ilabel.hover,.ilabel:hover{background:#fff8e8;box-shadow:0 0 0 2px var(--brass),0 6px 18px rgba(29,53,87,.25)}
+.ilabel.lockedlabel{background:rgba(235,238,242,.85)}
+.ilabel.lockedlabel b{color:#6b7a90}
+.ilabel::after{content:"";position:absolute;bottom:-6px;left:50%;margin-left:-6px;border:6px solid transparent;border-bottom:0;border-top-color:rgba(255,255,255,.92)}
+header{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;gap:12px;padding:12px 18px;z-index:5;pointer-events:none}
+header > *{pointer-events:auto}
+.brand{background:rgba(29,53,87,.88);color:#fff;border-radius:14px;padding:8px 16px;box-shadow:0 6px 20px rgba(29,53,87,.25)}
+.brand h1{margin:0;font-size:20px;letter-spacing:1px}
+.brand h1 .gear{display:inline-block;color:var(--brass2);animation:spin 6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.brand p{margin:2px 0 0;font-size:12.5px;opacity:.85}
+.sp{flex:1}
+.hbtn{background:rgba(255,255,255,.9);border:none;border-radius:10px;padding:8px 14px;font:inherit;font-size:14px;color:var(--navy);text-decoration:none;cursor:pointer;box-shadow:0 3px 10px rgba(29,53,87,.15);white-space:nowrap}
+.hbtn:hover{background:#fff8e8}
+.hbtn.primary{background:linear-gradient(#f3cf86,#c8963e);color:#2b1d05;font-weight:700}
+#totalProgress{background:rgba(255,255,255,.75);border-radius:10px;padding:7px 12px;font-size:13px;color:var(--navy)}
+.tip{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:rgba(29,53,87,.8);color:#fff;padding:8px 16px;border-radius:20px;font-size:13.5px;pointer-events:none}
+#panel{position:fixed;top:0;right:0;bottom:0;width:min(420px,92vw);background:#fffdf7;box-shadow:-8px 0 30px rgba(29,53,87,.25);padding:26px 24px;transform:translateX(105%);transition:transform .3s ease;z-index:10;overflow:auto}
+#panel.open{transform:none}
+#panel .close{position:absolute;top:14px;right:14px;border:none;background:#eef2f6;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:15px}
+.ptag{display:inline-block;color:#fff;border-radius:12px;padding:3px 11px;font-size:12.5px}
+#panel h2{margin:10px 0 6px;color:var(--navy);font-size:26px}
+#panel p{line-height:1.7;color:#3d4a5c}
+.levels{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+.level{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;background:#fff;border:1px solid #e3e8ef;text-decoration:none;color:inherit;transition:.15s}
+.level:hover{border-color:var(--brass);transform:translateX(3px);box-shadow:0 4px 12px rgba(200,150,62,.18)}
+.level .num{width:38px;height:38px;flex-shrink:0;border-radius:50%;display:grid;place-items:center;background:#eef2f6;color:var(--navy);font-weight:700;font-size:13px}
+.level.done .num{background:#d9f2dd;color:#2e7d32;font-size:17px}
+.level b{display:block;font-size:15px;color:var(--navy)}
+.level small{display:block;color:#6b7a90;font-size:12.5px;margin-top:2px}
+.level .arrow{margin-left:auto;color:var(--brass);font-weight:700}
+.locked{margin-top:16px;padding:14px;border-radius:12px;background:#eef2f6;color:#5c6b80;line-height:1.7}
+.go{display:inline-block;margin-top:10px;background:var(--navy);color:#fff;text-decoration:none;border-radius:10px;padding:9px 16px}
+.go.big{font-size:16px;padding:12px 22px}
+#listView{display:none;position:fixed;inset:0;overflow:auto;padding:100px 20px 40px;z-index:4;background:linear-gradient(180deg,#bfe3ff,#fdf3e1)}
+body.list-mode #listView{display:block}
+body.list-mode #scene,body.list-mode #labels,body.list-mode .tip{display:none}
+.listgrid{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.card{background:#fff;border-radius:16px;padding:16px;border-top:6px solid var(--c);box-shadow:0 4px 16px rgba(29,53,87,.1);display:flex;flex-direction:column;gap:8px}
+.card.lockedcard{opacity:.65}
+.ctitle{font-weight:700;color:var(--navy);font-size:16px;display:flex;justify-content:space-between}
+.ctitle small{font-weight:400;color:#6b7a90}
+.cdesc{font-size:13px;color:#5c6b80;line-height:1.6}
+.card .level{padding:8px 10px}
+.card .level .num{width:30px;height:30px;font-size:11.5px}
+@media (max-width:700px){.brand p,#totalProgress{display:none}.brand h1{font-size:16px}header{flex-wrap:wrap}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><h1><span class="gear">⚙</span> Arduino 機械浮島</h1><p>接線、寫程式、通過關卡——在雲端打造你的第一台機器</p></div>
+  <span class="sp"></span>
+  <span id="totalProgress"></span>
+  <button id="listBtn" class="hbtn">📋 清單 / 3D 切換</button>
+  <a class="hbtn primary" href="lab.html">🛠 自由實驗室</a>
+  <a class="hbtn" href="https://similaitw.github.io/simi-teaching-islands/">← 教學群島</a>
+</header>
+<div id="scene"></div>
+<div id="labels"></div>
+<div class="tip">點選浮島開始冒險 · 第 1–3 島已開放</div>
+<div id="listView"></div>
+<aside id="panel"></aside>
+<!--BUNDLE-->
+</body>
+</html>

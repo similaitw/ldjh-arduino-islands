@@ -15,6 +15,7 @@
     "@wokwi/elements": "^1.9.2",
     "blockly": "^13.4.0",
     "codemirror": "^6.0.2",
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "three": "^0.187.0"
   }
 }
