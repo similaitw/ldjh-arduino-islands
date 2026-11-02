@@ -1,4 +1,4 @@
-// 第 1–3 島關卡：說明、起始狀態、自動檢查、提示、參考解答
+// 第 1–3 顆星球的關卡：說明、起始狀態、自動檢查、提示、參考解答
 import { segments } from './checker.js';
 
 const UNO = { id: 'uno', type: 'uno', x: 60, y: 240 };
@@ -27,17 +27,17 @@ function needLed(ctx, pin) {
 }
 
 export const ISLANDS = [
-  { id: 1, name: '啟航港', icon: '⚓', color: '#4fa3e0', theme: '數位輸出與時間控制', desc: '從零開始接出第一個電路，掌握 pinMode、digitalWrite 與 delay 的節奏感。' },
-  { id: 2, name: '光之島', icon: '💡', color: '#f2b84b', theme: 'PWM 與多燈控制', desc: '用 analogWrite 調出漸層亮度，練習時間序列與狀態切換。' },
-  { id: 3, name: '開關島', icon: '🔘', color: '#5cbf7a', theme: '數位輸入與序列埠', desc: '讀取按鈕、處理機械彈跳，並透過序列埠和 Arduino 對話。' },
-  { id: 4, name: '感測島', icon: '🌡️', color: '#e07a5f', theme: '感測器與校正', desc: '光敏、溫溼度、超音波；學會校正、遲滯與濾波。', locked: true },
-  { id: 5, name: '動力島', icon: '⚙️', color: '#9b8ec4', theme: '伺服與馬達', desc: '讓東西動起來：伺服角度控制、馬達與繼電器。', locked: true },
-  { id: 6, name: '顯示島', icon: '🖥️', color: '#5fb3b3', theme: '顯示裝置', desc: '七段顯示器、LCD1602、燈條。', locked: true },
-  { id: 7, name: '專題島', icon: '🏆', color: '#c8963e', theme: '綜合專題', desc: '狀態機與多工整合：倒車雷達、溫控風扇、自動澆花。', locked: true },
+  { id: 1, name: '啟航星', icon: '⚓', color: '#4fa3e0', theme: '數位輸出與時間控制', desc: '從零開始接出第一個電路，掌握 pinMode、digitalWrite 與 delay 的節奏感。' },
+  { id: 2, name: '光之星', icon: '💡', color: '#f2b84b', theme: 'PWM 與多燈控制', desc: '用 analogWrite 調出漸層亮度，練習時間序列與狀態切換。' },
+  { id: 3, name: '開關星', icon: '🔘', color: '#5cbf7a', theme: '數位輸入與序列埠', desc: '讀取按鈕、處理機械彈跳，並透過序列埠和 Arduino 對話。' },
+  { id: 4, name: '感測星', icon: '🌡️', color: '#e07a5f', theme: '感測器與校正', desc: '光敏、溫溼度、超音波；學會校正、遲滯與濾波。', locked: true },
+  { id: 5, name: '動力星', icon: '⚙️', color: '#9b8ec4', theme: '伺服與馬達', desc: '讓東西動起來：伺服角度控制、馬達與繼電器。', locked: true },
+  { id: 6, name: '顯示星', icon: '🖥️', color: '#5fb3b3', theme: '顯示裝置', desc: '七段顯示器、LCD1602、燈條。', locked: true },
+  { id: 7, name: '專題星', icon: '🏆', color: '#c8963e', theme: '綜合專題', desc: '狀態機與多工整合：倒車雷達、溫控風扇、自動澆花。', locked: true },
 ];
 
 export const LEVELS = [
-  // ================= 第 1 島 啟航港 =================
+  // ================= 第 1 顆星球 啟航星 =================
   {
     id: '1-1', island: 1, title: '點亮第一顆 LED', brief: '自己接線，讓 D13 上的 LED 持續亮著',
     goal: [
@@ -163,7 +163,7 @@ void loop() {
     },
   },
 
-  // ================= 第 2 島 光之島 =================
+  // ================= 第 2 顆星球 光之星 =================
   {
     id: '2-1', island: 2, title: '呼吸燈', brief: '讓 LED 像呼吸一樣漸亮、漸暗',
     goal: [
@@ -338,7 +338,7 @@ void loop() {
     },
   },
 
-  // ================= 第 3 島 開關島 =================
+  // ================= 第 3 顆星球 開關星 =================
   {
     id: '3-1', island: 3, title: '按住才亮', brief: '按著按鈕 LED 亮，放開就熄',
     goal: [

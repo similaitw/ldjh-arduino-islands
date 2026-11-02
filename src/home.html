@@ -3,36 +3,36 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Arduino 機械浮島</title>
+<title>Arduino 機械星系</title>
 <meta name="description" content="給自學進階學生的 Arduino 線上模擬課程：積木與 Arduino C 雙介面、可互動的感測器、自動檢查關卡。">
 <style>
 :root{--navy:#1d3557;--brass:#c8963e;--brass2:#e7c27d}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;color:#1f2a37}
-body{background:linear-gradient(180deg,#7fbff0 0%,#bfe3ff 45%,#fde9c8 100%)}
+body{background:#05060f;color:#e8eefc}
 #scene{position:fixed;inset:0}
 #labels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
-.ilabel{position:absolute;left:0;top:0;pointer-events:auto;border:none;cursor:pointer;background:rgba(255,255,255,.92);border-radius:12px;padding:5px 12px 6px;box-shadow:0 4px 14px rgba(29,53,87,.18);display:flex;flex-direction:column;align-items:center;font:inherit;transition:background .15s, box-shadow .15s;white-space:nowrap}
-.ilabel b{font-size:15px;color:var(--navy)}
-.ilabel small{font-size:11.5px;color:#5c6b80}
-.ilabel.hover,.ilabel:hover{background:#fff8e8;box-shadow:0 0 0 2px var(--brass),0 6px 18px rgba(29,53,87,.25)}
-.ilabel.lockedlabel{background:rgba(235,238,242,.85)}
-.ilabel.lockedlabel b{color:#6b7a90}
-.ilabel::after{content:"";position:absolute;bottom:-6px;left:50%;margin-left:-6px;border:6px solid transparent;border-bottom:0;border-top-color:rgba(255,255,255,.92)}
+.ilabel{position:absolute;left:0;top:0;pointer-events:auto;border:1px solid rgba(200,150,62,.55);cursor:pointer;background:rgba(14,20,40,.78);backdrop-filter:blur(4px);border-radius:12px;padding:5px 12px 6px;box-shadow:0 0 18px rgba(120,160,255,.18);display:flex;flex-direction:column;align-items:center;font:inherit;transition:background .15s, box-shadow .15s;white-space:nowrap}
+.ilabel b{font-size:15px;color:#fff}
+.ilabel small{font-size:11.5px;color:#f3d79c}
+.ilabel.hover,.ilabel:hover{background:rgba(40,32,12,.9);box-shadow:0 0 0 2px var(--brass),0 0 24px rgba(231,194,125,.45)}
+.ilabel.lockedlabel{border-color:rgba(140,150,175,.4)}
+.ilabel.lockedlabel b{color:#b5bdd0}.ilabel.lockedlabel small{color:#8a93a8}
+.ilabel::after{content:"";position:absolute;bottom:-6px;left:50%;margin-left:-6px;border:6px solid transparent;border-bottom:0;border-top-color:rgba(200,150,62,.7)}
 header{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;gap:12px;padding:12px 18px;z-index:5;pointer-events:none}
 header > *{pointer-events:auto}
-.brand{background:rgba(29,53,87,.88);color:#fff;border-radius:14px;padding:8px 16px;box-shadow:0 6px 20px rgba(29,53,87,.25)}
+.brand{background:rgba(14,20,40,.75);border:1px solid rgba(200,150,62,.45);backdrop-filter:blur(6px);color:#fff;border-radius:14px;padding:8px 16px}
 .brand h1{margin:0;font-size:20px;letter-spacing:1px}
 .brand h1 .gear{display:inline-block;color:var(--brass2);animation:spin 6s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .brand p{margin:2px 0 0;font-size:12.5px;opacity:.85}
 .sp{flex:1}
-.hbtn{background:rgba(255,255,255,.9);border:none;border-radius:10px;padding:8px 14px;font:inherit;font-size:14px;color:var(--navy);text-decoration:none;cursor:pointer;box-shadow:0 3px 10px rgba(29,53,87,.15);white-space:nowrap}
+.hbtn{background:rgba(255,255,255,.92);border:none;border-radius:10px;padding:8px 14px;font:inherit;font-size:14px;color:var(--navy);text-decoration:none;cursor:pointer;box-shadow:0 3px 10px rgba(29,53,87,.15);white-space:nowrap}
 .hbtn:hover{background:#fff8e8}
 .hbtn.primary{background:linear-gradient(#f3cf86,#c8963e);color:#2b1d05;font-weight:700}
-#totalProgress{background:rgba(255,255,255,.75);border-radius:10px;padding:7px 12px;font-size:13px;color:var(--navy)}
-.tip{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:rgba(29,53,87,.8);color:#fff;padding:8px 16px;border-radius:20px;font-size:13.5px;pointer-events:none}
-#panel{position:fixed;top:0;right:0;bottom:0;width:min(420px,92vw);background:#fffdf7;box-shadow:-8px 0 30px rgba(29,53,87,.25);padding:26px 24px;transform:translateX(105%);transition:transform .3s ease;z-index:10;overflow:auto}
+#totalProgress{background:rgba(14,20,40,.7);border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:7px 12px;font-size:13px;color:#e8eefc}
+.tip{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:rgba(14,20,40,.8);border:1px solid rgba(200,150,62,.4);color:#fff;padding:8px 16px;border-radius:20px;font-size:13.5px;pointer-events:none}
+#panel{position:fixed;top:0;right:0;bottom:0;width:min(420px,92vw);background:#fffdf7;color:#1f2a37;box-shadow:-8px 0 30px rgba(29,53,87,.25);padding:26px 24px;transform:translateX(105%);transition:transform .3s ease;z-index:10;overflow:auto}
 #panel.open{transform:none}
 #panel .close{position:absolute;top:14px;right:14px;border:none;background:#eef2f6;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:15px}
 .ptag{display:inline-block;color:#fff;border-radius:12px;padding:3px 11px;font-size:12.5px}
@@ -49,7 +49,7 @@ header > *{pointer-events:auto}
 .locked{margin-top:16px;padding:14px;border-radius:12px;background:#eef2f6;color:#5c6b80;line-height:1.7}
 .go{display:inline-block;margin-top:10px;background:var(--navy);color:#fff;text-decoration:none;border-radius:10px;padding:9px 16px}
 .go.big{font-size:16px;padding:12px 22px}
-#listView{display:none;position:fixed;inset:0;overflow:auto;padding:100px 20px 40px;z-index:4;background:linear-gradient(180deg,#bfe3ff,#fdf3e1)}
+#listView{display:none;position:fixed;inset:0;overflow:auto;padding:100px 20px 40px;z-index:4;background:radial-gradient(ellipse at top,#1b2350,#05060f 70%);color:#1f2a37}
 body.list-mode #listView{display:block}
 body.list-mode #scene,body.list-mode #labels,body.list-mode .tip{display:none}
 .listgrid{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
@@ -60,12 +60,12 @@ body.list-mode #scene,body.list-mode #labels,body.list-mode .tip{display:none}
 .cdesc{font-size:13px;color:#5c6b80;line-height:1.6}
 .card .level{padding:8px 10px}
 .card .level .num{width:30px;height:30px;font-size:11.5px}
-@media (max-width:700px){.brand p,#totalProgress{display:none}.brand h1{font-size:16px}header{flex-wrap:wrap}}
+@media (max-width:700px){#listView{padding-top:180px}.brand p,#totalProgress{display:none}.brand h1{font-size:16px}header{flex-wrap:wrap}}
 </style>
 </head>
 <body>
 <header>
-  <div class="brand"><h1><span class="gear">⚙</span> Arduino 機械浮島</h1><p>接線、寫程式、通過關卡——在雲端打造你的第一台機器</p></div>
+  <div class="brand"><h1><span class="gear">⚙</span> Arduino 機械星系</h1><p>接線、寫程式、闖關——從核心工坊出發，探索七顆電子星球</p></div>
   <span class="sp"></span>
   <span id="totalProgress"></span>
   <button id="listBtn" class="hbtn">📋 清單 / 3D 切換</button>
@@ -74,7 +74,7 @@ body.list-mode #scene,body.list-mode #labels,body.list-mode .tip{display:none}
 </header>
 <div id="scene"></div>
 <div id="labels"></div>
-<div class="tip">點選浮島開始冒險 · 第 1–3 島已開放</div>
+<div class="tip">點選星球開始探索 · 內圈 3 顆星球已開放</div>
 <div id="listView"></div>
 <aside id="panel"></aside>
 <!--BUNDLE-->

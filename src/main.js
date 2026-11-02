@@ -387,12 +387,12 @@ function initLesson() {
   const island = ISLANDS.find(i => i.id === LEVEL.island);
   const siblings = LEVELS.filter(l => l.island === LEVEL.island);
   const next = nextLevel(LEVEL.id);
-  document.title = `${LEVEL.id} ${LEVEL.title} · Arduino 機械浮島`;
+  document.title = `${LEVEL.id} ${LEVEL.title} · Arduino 機械星系`;
   const box = $('#lesson');
   box.hidden = false;
   box.innerHTML = `
     <div class="lhead">
-      <span class="lisland" style="background:${island.color}">${island.icon} 第 ${island.id} 島 · ${island.name}</span>
+      <span class="lisland" style="background:${island.color}">${island.icon} ${island.name}</span>
       <b class="ltitle">${LEVEL.id}　${LEVEL.title}</b>
       <span class="ldots">${siblings.map(l => `<a href="#level-${l.id}" class="${l.id === LEVEL.id ? 'cur' : ''} ${getProgress()[l.id] ? 'done' : ''}" title="${l.id} ${l.title}">${getProgress()[l.id] ? '✓' : l.id.split('-')[1]}</a>`).join('')}</span>
       <button id="lToggle" class="tbtn" title="收合">▾</button>
@@ -404,7 +404,7 @@ function initLesson() {
         <button id="lHint" class="tbtn">💡 提示 <span id="lHintN"></span></button>
         <button id="lSol" class="tbtn">📖 參考解答</button>
         <button id="lReset" class="tbtn">↺ 重設關卡</button>
-        ${next ? `<a id="lNext" class="tbtn" href="#level-${next.id}">下一關 ${next.id} →</a>` : '<a class="tbtn" href="index.html">🏝 回浮島地圖</a>'}
+        ${next ? `<a id="lNext" class="tbtn" href="#level-${next.id}">下一關 ${next.id} →</a>` : '<a class="tbtn" href="index.html">🪐 回星系地圖</a>'}
       </div>
       <div id="lHints" class="lhints"></div>
       <div id="lResult" class="lresult" hidden></div>
@@ -436,7 +436,7 @@ async function doCheck() {
     markDone(LEVEL.id);
     res.classList.add('pass');
     const next = nextLevel(LEVEL.id);
-    res.insertAdjacentHTML('beforeend', `<div class="cheer">🎉 任務完成！${next ? `<a href="#level-${next.id}">前往下一關 ${next.id}「${next.title}」→</a>` : '<a href="index.html">回到浮島地圖 →</a>'}</div>`);
+    res.insertAdjacentHTML('beforeend', `<div class="cheer">🎉 任務完成！${next ? `<a href="#level-${next.id}">前往下一關 ${next.id}「${next.title}」→</a>` : '<a href="index.html">回到星系地圖 →</a>'}</div>`);
     document.querySelectorAll('.ldots a.cur').forEach(a => { a.classList.add('done'); a.textContent = '✓'; });
   } else {
     res.classList.add('fail');
