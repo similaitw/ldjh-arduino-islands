@@ -210,6 +210,7 @@ export class Runtime {
         rt.checkPin(p, 'pinMode');
         if (!['INPUT', 'OUTPUT', 'INPUT_PULLUP'].includes(m)) throw new Error(`pinMode 的模式必須是 INPUT、OUTPUT 或 INPUT_PULLUP`);
         rt.pins[p].mode = m; if (m !== 'OUTPUT') rt.pins[p].pwm = null;
+        c.pinChanged();
       },
       digitalWrite(p, v) {
         rt.checkPin(p, 'digitalWrite');
@@ -222,6 +223,7 @@ export class Runtime {
         const nv = v ? 1 : 0;
         if (nv !== s.value || s.pwm != null) rt.logWrite(p, nv * 255);
         s.value = nv; s.pwm = null;
+        c.pinChanged();
       },
       digitalRead(p) {
         rt.checkPin(p, 'digitalRead');
@@ -252,6 +254,7 @@ export class Runtime {
         }
         if (s.pwm !== v) rt.logWrite(p, v);
         s.pwm = v;
+        c.pinChanged();
       },
       delay: ms => rt.sleep(ms),
       delayMicroseconds: us => us >= 1000 ? rt.sleep(us / 1000) : rt.tick(),

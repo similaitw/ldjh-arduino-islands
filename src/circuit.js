@@ -119,7 +119,7 @@ export class Circuit {
   // ---------- 網路解算 ----------
   invalidate() { this._struct = null; }
 
-  _build(mergeResistors) {
+  _build(mergeResistors, relayStates) {
     const uf = new UF();
     const node = (cid, pin) => cid === 'uno' ? 'uno:' + normUnoPin(pin) : cid + ':' + pin;
     for (const w of this.wires) {
@@ -132,6 +132,7 @@ export class Circuit {
         if (c.pressed) uf.union(c.id + ':1.l', c.id + ':2.l');
       }
       if (c.type === 'resistor' && mergeResistors) uf.union(c.id + ':1', c.id + ':2');
+      if (c.type === 'relay' && relayStates) uf.union(c.id + ':COM', c.id + (relayStates.get(c.id) ? ':NO' : ':NC'));
     }
     const nets = new Map();
     for (const k of uf.p.keys()) { const r = uf.find(k); if (!nets.has(r)) nets.set(r, []); nets.get(r).push(k); }
@@ -139,8 +140,27 @@ export class Circuit {
   }
 
   struct() {
-    if (!this._struct) this._struct = { merged: this._build(true), raw: this._build(false) };
+    if (!this._struct) {
+      // 繼電器：先用「未切換」的電路判斷 IN 腳電位，再決定 COM 接到 NO 還是 NC
+      const relays = [...this.comps.values()].filter(c => c.type === 'relay');
+      let states = null;
+      if (relays.length) {
+        this._struct = { merged: this._build(true, null), raw: this._build(false, null) };
+        states = new Map(relays.map(r => [r.id, !!this.powered(r.id) && (this.baseLevel(r.id + ':IN') ?? 0) > 2.5]));
+      }
+      this._struct = { merged: this._build(true, states), raw: this._build(false, states) };
+      this.relayStates = states;
+    }
     return this._struct;
+  }
+
+  // 腳位輸出改變時：有繼電器就要重算（它會改變電路連接）
+  pinChanged() { if (this._struct && this.relayStates) this.invalidate(); }
+
+  motorSpeed(c) {
+    const a = this.level(c.id + ':M1'), b = this.level(c.id + ':M2');
+    if (a == null || b == null) return 0;
+    return Math.max(-1, Math.min(1, (a - b) / 5));
   }
 
   netNodes(nodeId, raw = false) {
@@ -191,6 +211,11 @@ export class Circuit {
         const v = this.powered(cid); if (!v) continue;
         const ao = ldrVoltage(c.props.lux);
         out.push({ v: pin === 'AO' ? ao : (ao / 5 * 1023 > c.props.threshold ? 5 : 0), src: cid });
+      } else if (c.type === 'l298n' && (pin === 'OUT1' || pin === 'OUT2')) {
+        const v = this.powered(cid); if (!v) continue;
+        const ena = this.baseLevel(cid + ':ENA'), frac = ena == null ? 1 : ena / 5;
+        const inp = this.baseLevel(cid + (pin === 'OUT1' ? ':IN1' : ':IN2'));
+        out.push({ v: (inp ?? 0) > 2.5 ? v * frac : 0, src: cid });
       } else if (c.type === 'pir' && pin === 'OUT') {
         const v = this.powered(cid); if (v) out.push({ v: c.props.motion ? 5 : 0, src: cid });
       }
@@ -253,6 +278,14 @@ export class Circuit {
           }
           break;
         }
+        case 'motor': {
+          el.speed = this.motorSpeed(c);
+          const direct = ['M1', 'M2'].some(p => this.netNodes(c.id + ':' + p, true).some(n => /^uno:(\d+|A\d)$/.test(n)));
+          if (direct) warnings.add(`${c.id} 直接接在 Arduino 腳位上——馬達電流太大會燒壞腳位，要透過 L298N 或繼電器`);
+          break;
+        }
+        case 'l298n': el.power = !!this.powered(c.id); break;
+        case 'relay': this.struct(); el.on = !!this.relayStates?.get(c.id); break;
         case 'ldr': {
           const v = this.powered(c.id);
           el.ledPower = !!v;

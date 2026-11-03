@@ -53,6 +53,12 @@ export function createCtx({ circuit, runtime, onStep }) {
       const ch = p => { const v = circuit.level(c.id + ':' + p); return com === 0 && v != null ? v / 5 : 0; };
       return { r: ch('R'), g: ch('G'), b: ch('B') };
     },
+    motor: m => circuit.motorSpeed(m),
+    relayOn: r => { circuit.struct(); return !!circuit.relayStates?.get(r.id); },
+    servoAngle(sv) {
+      for (const p of circuit.unoPinsInNet(sv.id + ':PWM')) { const s = runtime.servoOnPin(p); if (s) return s.angle; }
+      return null;
+    },
     serial: () => runtime.serialLog,
     writes: pin => runtime.writeLog.filter(w => w.p === pin),
 

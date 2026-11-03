@@ -31,7 +31,7 @@ export const ISLANDS = [
   { id: 2, name: '光之星', icon: '💡', color: '#f2b84b', theme: 'PWM 與多燈控制', desc: '用 analogWrite 調出漸層亮度，練習時間序列與狀態切換。' },
   { id: 3, name: '開關星', icon: '🔘', color: '#5cbf7a', theme: '數位輸入與序列埠', desc: '讀取按鈕、處理機械彈跳，並透過序列埠和 Arduino 對話。' },
   { id: 4, name: '感測星', icon: '🌡️', color: '#e07a5f', theme: '感測器：校正、遲滯、濾波', desc: '真實世界的感測器數值會漂移、跳動、有雜訊。學會用校正、遲滯與濾波，讓機器做出穩定的判斷。' },
-  { id: 5, name: '動力星', icon: '⚙️', color: '#9b8ec4', theme: '伺服與馬達', desc: '讓東西動起來：伺服角度控制、馬達與繼電器。', locked: true },
+  { id: 5, name: '動力星', icon: '⚙️', color: '#9b8ec4', theme: '伺服、馬達與繼電器', desc: '讓東西動起來：伺服的平滑控制、用驅動板控制馬達轉速與方向、用繼電器開關大電流負載。' },
   { id: 6, name: '顯示星', icon: '🖥️', color: '#5fb3b3', theme: '顯示裝置', desc: '七段顯示器、LCD1602、燈條。', locked: true },
   { id: 7, name: '專題星', icon: '🏆', color: '#c8963e', theme: '綜合專題', desc: '狀態機與多工整合：倒車雷達、溫控風扇、自動澆花。', locked: true },
 ];
@@ -784,6 +784,256 @@ void loop() {
         ctx.expect(okFrac >= 0.92, `${dist} cm：${names[want]}燈穩定（${Math.round(okFrac * 100)}%）`,
           `${dist} cm 時${names[want]}燈只亮了 ${Math.round(okFrac * 100)}% 的時間，其他時候變成 ${others.join('、') || '—'}${okFrac > 0.3 ? '——錯誤讀值沒有被濾掉' : ''}`);
       }
+    },
+  },
+  // ================= 第 5 顆星球 動力星 =================
+  {
+    id: '5-1', island: 5, title: '伺服平滑跟隨', brief: '旋鈕決定目標角度，伺服要「慢慢轉過去」',
+    goal: [
+      '可變電阻 SIG → <b>A0</b>，伺服馬達 PWM → <b>~9</b>（電路已接好）',
+      '旋鈕 0~1023 對應目標角度 0~180°',
+      '伺服<b>不能一次跳到目標</b>：每 20 ms 最多轉 3°，平滑地追上目標（避免機械手臂猛甩）',
+      '旋鈕不動時，伺服最後要停在目標角度（誤差 3° 內）',
+    ],
+    starter: {
+      mode: 'code',
+      circuit: circuit({
+        parts: [{ id: 'servo1', type: 'servo', x: 380, y: 60 }, { id: 'pot1', type: 'pot', x: 420, y: 480, props: { value: 512 } }],
+        wires: [{ a: 'servo1:PWM', b: 'uno:9', color: '#e67e22' }, { a: 'servo1:V+', b: 'uno:5V', color: '#d32f2f' }, { a: 'servo1:GND', b: 'uno:GND.1', color: '#222' },
+          { a: 'pot1:SIG', b: 'uno:A0', color: '#2e7d32' }, { a: 'pot1:VCC', b: 'uno:5V', color: '#d32f2f' }, { a: 'pot1:GND', b: 'uno:GND.2', color: '#222' }],
+      }),
+      code: `#include <Servo.h>
+
+Servo arm;
+
+void setup() {
+  arm.attach(9);
+}
+
+void loop() {
+  int target = map(analogRead(A0), 0, 1023, 0, 180);
+  arm.write(target);      // 這樣會直接跳過去——改成慢慢轉
+  delay(20);
+}
+`,
+    },
+    hints: [
+      '用一個變數 current 記住「現在的角度」，每次 loop 只往 target 靠近一點點。',
+      'if (current < target) current = min(current + 2, target); else if (current > target) current = max(current - 2, target);',
+      '每次移動後 arm.write(current); delay(20);',
+    ],
+    solution: {
+      mode: 'code',
+      code: `#include <Servo.h>
+
+Servo arm;
+int current = 90;
+const int STEP = 2;          // 每 20ms 最多轉 2 度
+
+void setup() {
+  arm.attach(9);
+  arm.write(current);
+}
+
+void loop() {
+  int target = map(analogRead(A0), 0, 1023, 0, 180);
+  if (current < target) current = min(current + STEP, target);
+  else if (current > target) current = max(current - STEP, target);
+  arm.write(current);
+  delay(20);
+}
+`,
+    },
+    async check(ctx) {
+      const sv = ctx.parts('servo').find(x => ctx.linked(x.id + ':PWM', 'uno:9'));
+      ctx.expect(sv, '伺服 PWM 接在 D9', '找不到 PWM 接在 D9 的伺服馬達，可按「重設關卡」');
+      const pot = ctx.parts('pot').find(p => ctx.linked(p.id + ':SIG', 'uno:A0'));
+      ctx.expect(pot, '可變電阻接在 A0', '找不到 SIG 接在 A0 的可變電阻');
+      ctx.setProp(pot, 'value', 0); await ctx.wait(3000);
+      const a0 = ctx.servoAngle(sv);
+      ctx.expect(a0 != null, '伺服有被控制（attach + write）', '伺服沒有反應：記得 arm.attach(9) 並呼叫 arm.write()');
+      ctx.expect(a0 <= 3, `旋鈕轉到 0：伺服停在 ${Math.round(a0)}°`, `旋鈕轉到 0 等了 3 秒，伺服停在 ${Math.round(a0)}°，應該接近 0°`);
+      ctx.note('把旋鈕一口氣轉到底，觀察伺服怎麼移動…');
+      ctx.setProp(pot, 'value', 1023);
+      const s = (await ctx.sample(() => ctx.servoAngle(sv), 3500, 20)).map(x => x.v);
+      let jump = 0; for (let i = 1; i < s.length; i++) jump = Math.max(jump, Math.abs(s[i] - s[i - 1]));
+      ctx.expect(jump <= 8, `轉動平滑（每次取樣最多變化 ${Math.round(jump)}°）`, `伺服一次跳了 ${Math.round(jump)}°——要分很多小步慢慢轉（每 20 ms ≤ 3°）`);
+      const reach = s.findIndex(v => v >= 177);
+      ctx.expect(reach >= 0, `最後到達 ${Math.round(s[s.length - 1])}°`, `3.5 秒後只轉到 ${Math.round(s[s.length - 1])}°，太慢了或沒有追上目標`);
+      ctx.expect(reach * 20 >= 900, `花了約 ${(reach * 0.02).toFixed(1)} 秒從 0° 轉到 180°`, `只花 ${(reach * 0.02).toFixed(1)} 秒就轉完 180°，太快了（每 20 ms ≤ 3° 至少要 1.2 秒）`);
+    },
+  },
+  {
+    id: '5-2', island: 5, title: '馬達調速與換向', brief: 'L298N：旋鈕調速度，按鈕切換正反轉',
+    goal: [
+      'L298N：<b>ENA → ~5</b>（PWM 調速）、<b>IN1 → D7</b>、<b>IN2 → D8</b>，OUT1/OUT2 接馬達（電路已接好）',
+      '旋鈕（A0）0~1023 對應轉速 0~255；旋鈕轉到 0 時馬達要停',
+      '按一下按鈕（D2）就<b>反轉方向</b>，速度不變',
+      '方向：IN1=HIGH、IN2=LOW 正轉；IN1=LOW、IN2=HIGH 反轉',
+    ],
+    starter: {
+      mode: 'code',
+      circuit: circuit({
+        parts: [{ id: 'drv1', type: 'l298n', x: 380, y: 260 }, { id: 'motor1', type: 'motor', x: 560, y: 110 },
+          { id: 'pot1', type: 'pot', x: 400, y: 480, props: { value: 700 } }, { id: 'btn1', type: 'button', x: 560, y: 480 }],
+        wires: [{ a: 'drv1:ENA', b: 'uno:5', color: '#e67e22' }, { a: 'drv1:IN1', b: 'uno:7', color: '#1565c0' }, { a: 'drv1:IN2', b: 'uno:8', color: '#8e44ad' },
+          { a: 'drv1:VCC', b: 'uno:5V', color: '#d32f2f' }, { a: 'drv1:GND', b: 'uno:GND.2', color: '#222' },
+          { a: 'drv1:OUT1', b: 'motor1:M1', color: '#d32f2f' }, { a: 'drv1:OUT2', b: 'motor1:M2', color: '#222' },
+          { a: 'pot1:SIG', b: 'uno:A0', color: '#2e7d32' }, { a: 'pot1:VCC', b: 'uno:5V', color: '#d32f2f' }, { a: 'pot1:GND', b: 'uno:GND.3', color: '#222' },
+          { a: 'btn1:1.l', b: 'uno:2', color: '#1565c0' }, { a: 'btn1:2.r', b: 'uno:GND.1', color: '#222' }],
+      }),
+      code: skeleton('const int ENA = 5, IN1 = 7, IN2 = 8, BTN = 2;\n\n'),
+    },
+    hints: [
+      '速度：analogWrite(ENA, map(analogRead(A0), 0, 1023, 0, 255));',
+      '方向用 bool forward 記住；forward 時 digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW); 反之相反。',
+      '按鈕要偵測「剛按下」的那一刻（上次 HIGH、這次 LOW），否則按住時會一直切換。',
+    ],
+    solution: {
+      mode: 'code',
+      code: `const int ENA = 5, IN1 = 7, IN2 = 8, BTN = 2;
+bool forward = true;
+int lastBtn = HIGH;
+unsigned long lastPress = 0;
+
+void setup() {
+  pinMode(ENA, OUTPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(BTN, INPUT_PULLUP);
+  Serial.begin(9600);
+}
+
+void loop() {
+  int b = digitalRead(BTN);
+  if (lastBtn == HIGH && b == LOW && millis() - lastPress > 50) {
+    forward = !forward;            // 剛按下：換方向
+    lastPress = millis();
+  }
+  lastBtn = b;
+
+  int speed = map(analogRead(A0), 0, 1023, 0, 255);
+  digitalWrite(IN1, forward ? HIGH : LOW);
+  digitalWrite(IN2, forward ? LOW : HIGH);
+  analogWrite(ENA, speed);
+
+  Serial.print("speed:");
+  Serial.println(forward ? speed : -speed);
+  delay(10);
+}
+`,
+    },
+    async check(ctx) {
+      const m = ctx.parts('motor')[0];
+      const drv = ctx.parts('l298n')[0];
+      ctx.expect(m && drv && ctx.linked(drv.id + ':OUT1', m.id + ':M1') && ctx.linked(drv.id + ':ENA', 'uno:5'), 'L298N 與馬達接線正確', '找不到 L298N（ENA 接 D5）與馬達的接線，可按「重設關卡」');
+      const pot = ctx.parts('pot').find(p => ctx.linked(p.id + ':SIG', 'uno:A0'));
+      const btn = ctx.parts('button').find(b => ctx.linked(b.id + ':1.l', 'uno:2') || ctx.linked(b.id + ':2.l', 'uno:2'));
+      ctx.expect(pot && btn, '旋鈕接 A0、按鈕接 D2', '找不到接在 A0 的旋鈕或接在 D2 的按鈕');
+      const at = async v => { ctx.setProp(pot, 'value', v); await ctx.wait(500); return ctx.motor(m); };
+      const s0 = await at(0);
+      ctx.expect(Math.abs(s0) < 0.05, '旋鈕 0：馬達停止', `旋鈕轉到 0 時馬達還在轉（${Math.round(s0 * 100)}%）`);
+      const s1 = await at(1023);
+      ctx.expect(Math.abs(s1) > 0.95, `旋鈕最大：全速 ${Math.round(Math.abs(s1) * 100)}%`, `旋鈕轉到最大，轉速只有 ${Math.round(Math.abs(s1) * 100)}%——ENA 要用 analogWrite 輸出 0~255`);
+      const s2 = await at(512);
+      ctx.expect(Math.abs(Math.abs(s2) - 0.5) < 0.1 && Math.sign(s2) === Math.sign(s1), `旋鈕一半：轉速 ${Math.round(Math.abs(s2) * 100)}%`, `旋鈕轉到一半，轉速 ${Math.round(Math.abs(s2) * 100)}%，應該約 50%`);
+      for (let i = 1; i <= 2; i++) {
+        const before = ctx.motor(m);
+        ctx.press(btn);
+        const held = await ctx.sample(() => Math.sign(Math.round(ctx.motor(m) * 20)), 300, 10);
+        ctx.release(btn); await ctx.wait(400);
+        const flips = held.filter((x, k) => k && x.v && held[k - 1].v && x.v !== held[k - 1].v).length;
+        ctx.expect(flips <= 1, `第 ${i} 次按住按鈕時只換向一次`, `按住按鈕的 0.3 秒內方向切換了 ${flips} 次——要偵測「剛按下」的瞬間，而不是「按著」就切換`);
+        const after = ctx.motor(m);
+        ctx.expect(Math.sign(after) === -Math.sign(before) && Math.abs(Math.abs(after) - Math.abs(before)) < 0.1,
+          `第 ${i} 次按按鈕：${after > 0 ? '正轉' : '反轉'} ${Math.round(Math.abs(after) * 100)}%`,
+          `第 ${i} 次按按鈕後方向沒有反轉（按前 ${Math.round(before * 100)}%、按後 ${Math.round(after * 100)}%）${Math.abs(after) < 0.05 ? '——IN1、IN2 是不是設成一樣了？' : ''}`);
+      }
+    },
+  },
+  {
+    id: '5-3', island: 5, title: '定時抽水機（繼電器）', brief: '按一下抽水 3 秒，抽水中再按＝緊急停止',
+    goal: [
+      '繼電器 IN → <b>D4</b>；抽水馬達由 5V 經繼電器 <b>COM → NO</b> 供電（電路已接好）',
+      '按一下按鈕（D2）：繼電器吸合，抽水 <b>3 秒</b>後自動停止',
+      '抽水期間<b>再按一次 = 緊急停止</b>，立刻關掉',
+      '必須用 millis() 計時：抽水時按鈕也要隨時有反應（用 delay(3000) 會按不到）',
+    ],
+    starter: {
+      mode: 'code',
+      circuit: circuit({
+        parts: [{ id: 'relay1', type: 'relay', x: 380, y: 290 }, { id: 'pump', type: 'motor', x: 560, y: 150 }, { id: 'btn1', type: 'button', x: 420, y: 480 }],
+        wires: [{ a: 'relay1:VCC', b: 'uno:5V', color: '#d32f2f' }, { a: 'relay1:GND', b: 'uno:GND.2', color: '#222' }, { a: 'relay1:IN', b: 'uno:4', color: '#e67e22' },
+          { a: 'relay1:COM', b: 'uno:5V', color: '#d32f2f' }, { a: 'relay1:NO', b: 'pump:M1', color: '#d32f2f' }, { a: 'pump:M2', b: 'uno:GND.3', color: '#222' },
+          { a: 'btn1:1.l', b: 'uno:2', color: '#1565c0' }, { a: 'btn1:2.r', b: 'uno:GND.1', color: '#222' }],
+      }),
+      code: skeleton('const int RELAY = 4, BTN = 2;\nconst unsigned long PUMP_TIME = 3000;\n\n'),
+    },
+    hints: [
+      '用 bool pumping 和 unsigned long startTime 記錄狀態，這就是一個小小的「狀態機」。',
+      '剛按下時：如果沒在抽水 → 開始抽水、記下 startTime；如果正在抽水 → 立刻停止。',
+      '每次 loop 檢查：if (pumping && millis() - startTime >= PUMP_TIME) 就停止。',
+    ],
+    solution: {
+      mode: 'code',
+      code: `const int RELAY = 4, BTN = 2;
+const unsigned long PUMP_TIME = 3000;
+
+bool pumping = false;
+unsigned long startTime = 0;
+int lastBtn = HIGH;
+unsigned long lastPress = 0;
+
+void setPump(bool on) {
+  pumping = on;
+  digitalWrite(RELAY, on ? HIGH : LOW);
+  if (on) startTime = millis();
+  Serial.println(on ? "開始抽水" : "停止抽水");
+}
+
+void setup() {
+  pinMode(RELAY, OUTPUT);
+  pinMode(BTN, INPUT_PULLUP);
+  Serial.begin(9600);
+}
+
+void loop() {
+  int b = digitalRead(BTN);
+  if (lastBtn == HIGH && b == LOW && millis() - lastPress > 50) {
+    lastPress = millis();
+    setPump(!pumping);             // 沒抽→開始；正在抽→緊急停止
+  }
+  lastBtn = b;
+
+  if (pumping && millis() - startTime >= PUMP_TIME) {
+    setPump(false);                // 時間到自動停止
+  }
+}
+`,
+    },
+    async check(ctx) {
+      const relay = ctx.parts('relay').find(r => ctx.linked(r.id + ':IN', 'uno:4'));
+      ctx.expect(relay, '繼電器 IN 接在 D4', '找不到 IN 接在 D4 的繼電器，可按「重設關卡」');
+      const pump = ctx.parts('motor')[0];
+      const btn = ctx.parts('button').find(b => ctx.linked(b.id + ':1.l', 'uno:2') || ctx.linked(b.id + ':2.l', 'uno:2'));
+      ctx.expect(pump && btn, '抽水馬達與按鈕都在', '找不到抽水馬達或接在 D2 的按鈕');
+      const on = () => ctx.motor(pump) > 0.5;
+      const click = async () => { ctx.press(btn); await ctx.wait(150); ctx.release(btn); };
+      await ctx.wait(400);
+      ctx.expect(!on(), '開機時抽水機停止', '還沒按按鈕，抽水機就在運轉');
+      await click();
+      const s = await ctx.sample(on, 3800, 20);
+      const first = s.findIndex(x => x.v), last = s.map(x => x.v).lastIndexOf(true);
+      ctx.expect(first >= 0 && first * 20 < 300, '按一下：立刻開始抽水', '按下按鈕後抽水機沒有啟動（繼電器 IN 要輸出 HIGH）');
+      const dur = s[last].t - s[first].t + 150;
+      ctx.expect(!s[s.length - 1].v && Math.abs(dur - 3000) <= 300, `抽水約 ${(dur / 1000).toFixed(1)} 秒後自動停止`, s[s.length - 1].v ? '抽水 3.8 秒後還沒停止' : `抽水了約 ${(dur / 1000).toFixed(1)} 秒，目標 3 秒`);
+      await click(); await ctx.wait(300);
+      ctx.expect(on(), '再按一次：重新開始抽水', '停止後再按一次，抽水機沒有重新啟動');
+      await ctx.wait(800);
+      await click(); await ctx.wait(200);
+      ctx.expect(!on(), '抽水中按下：緊急停止', '抽水中按按鈕沒有立刻停止——如果用了 delay(3000)，等待期間按鈕會沒反應');
+      await ctx.wait(2500);
+      ctx.expect(!on(), '緊急停止後保持停止', '緊急停止後抽水機又自己啟動了');
     },
   },
 ];

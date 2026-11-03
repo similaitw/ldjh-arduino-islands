@@ -31,6 +31,12 @@ export const PARTS = {
     desc: 'OUT 偵測到人時輸出 HIGH。' },
   servo: { tag: 'wokwi-servo', name: '伺服馬達 SG90', cat: 'motion', prefix: 'servo',
     desc: 'PWM 接數位腳位，V+ 接 5V，使用 Servo 函式庫：s.attach(9); s.write(90);' },
+  motor: { tag: 'ardu-dc-motor', name: '直流馬達', cat: 'motion', prefix: 'motor',
+    desc: '轉速與方向取決於 M1、M2 的電壓差。不能直接接 Arduino 腳位（電流太大），要透過 L298N 或繼電器。' },
+  l298n: { tag: 'ardu-l298n', name: 'L298N 馬達驅動板', cat: 'motion', prefix: 'drv',
+    desc: 'IN1/IN2 控制方向（一高一低轉、相同則停），ENA 接 PWM 腳位控制轉速（ENA 不接 = 全速）。OUT1/OUT2 接馬達，VCC 接 5V。' },
+  relay: { tag: 'ardu-relay', name: '繼電器模組', cat: 'motion', prefix: 'relay',
+    desc: 'IN 為 HIGH 時吸合：COM 與 NO 導通；平時 COM 與 NC 導通。用小訊號控制大電流負載（抽水馬達、燈泡）。（真實模組有些是低電位觸發）' },
   resistor: { tag: 'wokwi-resistor', name: '電阻', cat: 'passive', prefix: 'r', props: { value: 220 },
     desc: 'LED 限流常用 220Ω；按鈕下拉電阻常用 10kΩ。' },
 };
@@ -41,7 +47,7 @@ export const COMING = {
   input: ['類比搖桿', '4×4 薄膜鍵盤', '紅外線遙控接收'],
   env: ['土壤濕度', '雨滴感測', '聲音感測'],
   distance: ['紅外線循跡', '傾斜開關'],
-  motion: ['直流馬達 + L298N', '繼電器'],
+  motion: ['步進馬達'],
   display: ['LCD1602 (I2C)', '七段顯示器', 'OLED 128×64'],
   passive: [],
 };

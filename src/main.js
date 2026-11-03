@@ -1,4 +1,5 @@
 import '@wokwi/elements';
+import './custom-parts.js';
 import { Blockly, TOOLBOX, generateC } from './blocks.js';
 import { Circuit } from './circuit.js';
 import { Runtime } from './runtime.js';

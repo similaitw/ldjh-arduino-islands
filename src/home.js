@@ -222,10 +222,12 @@ function initScene() {
   });
 
   // 小行星帶：開放區與建設區的分界
+  const openIdx = ISLANDS.reduce((k, isl, i) => isl.locked ? k : i, 0);
+  const beltR = (ORBITS[openIdx] + ORBITS[Math.min(openIdx + 1, ORBITS.length - 1)]) / 2;
   const rocks = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.18, 0), M(0x8a7d6e), 560);
   const r1 = rng(7), dummy = new THREE.Object3D();
   for (let i = 0; i < 560; i++) {
-    const a = r1() * Math.PI * 2, rr = 22.9 + r1() * 1.7;
+    const a = r1() * Math.PI * 2, rr = beltR - 0.85 + r1() * 1.7;
     dummy.position.set(Math.cos(a) * rr, (r1() - 0.5) * 0.6, Math.sin(a) * rr);
     dummy.rotation.set(r1() * 6, r1() * 6, r1() * 6); dummy.scale.setScalar(0.5 + r1() * 1.6); dummy.updateMatrix();
     rocks.setMatrixAt(i, dummy.matrix);
