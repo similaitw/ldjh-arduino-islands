@@ -74,6 +74,10 @@ aside h3,.ptitle{margin:0;padding:9px 12px;font-size:13px;color:var(--navy);back
 .serialbar form{display:flex;flex:1;gap:4px}
 .serialbar input[type=text]{flex:1;background:#0f1b2b;border:1px solid #2c4463;color:#fff;border-radius:5px;padding:3px 6px;font-size:12px}
 .serialbar button{background:#2c4463;color:#dfeaff;border:none;border-radius:5px;padding:3px 8px;font-size:12px}
+.serialmain{flex:1;display:flex;min-height:0}
+#plot{flex:1.4;min-width:0;height:100%;border-left:1px solid #2c4463;display:block}
+#plot[hidden]{display:none}
+.serialbar button.on{background:#c8963e;color:#1b1203}
 #serial{flex:1;margin:0;padding:6px 10px;overflow:auto;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap}
 .right{display:flex;flex-direction:column;min-width:0;min-height:0;background:#fff}
 .tabs{display:flex;align-items:center;background:#f3f7fb;border-bottom:1px solid var(--line);padding:0 6px}
@@ -100,6 +104,7 @@ aside h3,.ptitle{margin:0;padding:9px 12px;font-size:13px;color:var(--navy);back
 a.hbtn{text-decoration:none}
 body.lesson-mode #examples{display:none}
 body.lesson-mode .serialbox{height:17%;min-height:84px}
+body.plot-on .serialbox,body.lesson-mode.plot-on .serialbox{height:32%;min-height:150px}
 body.lesson-mode .lgoal{margin-bottom:6px;line-height:1.55}
 #lesson{background:#fffdf7;border-bottom:2px solid var(--brass2);font-size:13.5px;max-height:42%;overflow:auto;flex-shrink:0}
 .lhead{display:flex;align-items:center;gap:10px;padding:8px 12px;position:sticky;top:0;background:#fffdf7}
@@ -162,9 +167,10 @@ body.lesson-mode .lgoal{margin-bottom:6px;line-height:1.55}
         <span>🖥 序列埠監控</span>
         <form id="serialSend"><input id="serialInput" type="text" placeholder="輸入文字送給 Arduino（Serial.read）"><button>送出</button></form>
         <label><input id="autoscroll" type="checkbox" checked> 自動捲動</label>
+        <button id="plotBtn" type="button" title="把輸出的數字畫成折線圖">📈 繪圖</button>
         <button id="serialClear" type="button">清除</button>
       </div>
-      <pre id="serial"></pre>
+      <div class="serialmain"><pre id="serial"></pre><canvas id="plot" hidden></canvas></div>
     </div>
   </section>
   <section class="right">

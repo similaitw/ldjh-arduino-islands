@@ -222,10 +222,10 @@ function initScene() {
   });
 
   // 小行星帶：開放區與建設區的分界
-  const rocks = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.18, 0), M(0x8a7d6e), 450);
+  const rocks = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.18, 0), M(0x8a7d6e), 560);
   const r1 = rng(7), dummy = new THREE.Object3D();
-  for (let i = 0; i < 450; i++) {
-    const a = r1() * Math.PI * 2, rr = 17.6 + r1() * 1.8;
+  for (let i = 0; i < 560; i++) {
+    const a = r1() * Math.PI * 2, rr = 22.9 + r1() * 1.7;
     dummy.position.set(Math.cos(a) * rr, (r1() - 0.5) * 0.6, Math.sin(a) * rr);
     dummy.rotation.set(r1() * 6, r1() * 6, r1() * 6); dummy.scale.setScalar(0.5 + r1() * 1.6); dummy.updateMatrix();
     rocks.setMatrixAt(i, dummy.matrix);
@@ -239,7 +239,9 @@ function initScene() {
   const laneCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), ...lanePos]);
   const laneLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(laneCurve.getPoints(160)), new THREE.LineDashedMaterial({ color: 0xc8963e, dashSize: 0.5, gapSize: 0.35, transparent: true, opacity: 0.7 }));
   laneLine.computeLineDistances(); laneGroup.add(laneLine);
-  const gateY = (lanePos[2].y + lanePos[3].y) / 2;
+  // 解鎖門放在「最後一顆開放的星球」與「第一顆建設中」之間
+  const lastOpen = ISLANDS.reduce((k, isl, i) => isl.locked ? k : i, 0);
+  const gateY = (lanePos[lastOpen].y + lanePos[Math.min(lastOpen + 1, lanePos.length - 1)].y) / 2;
   const gate = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.16, 0), M(0x8a7d6e), 170);
   for (let i = 0; i < 170; i++) {
     const a = r1() * Math.PI * 2, rr = 3.6 + r1() * 1.2;
@@ -376,7 +378,8 @@ function initScene() {
       if (sideLabel) tmp.x += Math.sign(-g.position.x) * (g.userData.radius * 0.82 + 0.3);
       else tmp.y += g.userData.radius * (portrait ? 0.62 : 1) + 1.2;
       tmp.project(camera);
-      const vis = tmp.z < 1 && tmp.y > -1.2 && tmp.y < 1.2;
+      const sy = (-tmp.y * 0.5 + 0.5) * hh;
+      const vis = tmp.z < 1 && tmp.y > -1.2 && tmp.y < 1.2 && !(portrait && sy < 96);  // 直式時別蓋到標題列
       d.style.display = vis ? '' : 'none';
       const anchor = !sideLabel ? 'translate(-50%,-100%)' : g.position.x < 0 ? 'translate(0,-50%)' : 'translate(-100%,-50%)';
       d.style.transform = `translate(${(tmp.x * 0.5 + 0.5) * w}px, ${(-tmp.y * 0.5 + 0.5) * hh}px) ${anchor}`;

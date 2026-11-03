@@ -6,6 +6,7 @@ import { PARTS, CATEGORIES, COMING } from './parts.js';
 import { EXAMPLES, EMPTY_BLOCKS, DEFAULT_CODE } from './examples.js';
 import { LEVELS, ISLANDS, levelById, nextLevel, getProgress, markDone } from './levels.js';
 import { runCheck } from './checker.js';
+import { Plotter } from './plotter.js';
 import { EditorView, basicSetup } from 'codemirror';
 import { EditorState } from '@codemirror/state';
 import { cpp } from '@codemirror/lang-cpp';
@@ -28,9 +29,12 @@ const circuit = new Circuit({
 // ---------- 序列埠 ----------
 let serialBuf = '';
 const serialEl = $('#serial');
+const plotter = new Plotter($('#plot'));
+const setPlot = on => { $('#plot').hidden = !on; document.body.classList.toggle('plot-on', on); $('#plotBtn').classList.toggle('on', on); plotter.dirty = true; };
+$('#plotBtn').addEventListener('click', () => setPlot($('#plot').hidden));
 const runtime = new Runtime({
   circuit,
-  onSerial: t => { serialBuf += t; },
+  onSerial: t => { serialBuf += t; plotter.feed(t); },
   onError: msg => { serialBuf += `\n⛔ ${msg}\n`; addWarning(msg, true); },
   onWarn: msg => addWarning(msg),
   onState: running => {
@@ -78,6 +82,7 @@ function frame() {
   if (runtime.running) runtime.updateSound();
   renderWarnings(w);
   flushSerial();
+  if (!$('#plot').hidden) plotter.draw();
   requestAnimationFrame(frame);
 }
 
@@ -130,7 +135,7 @@ const currentCode = () => mode === 'blocks' ? generateC(ws) : getEditorCode();
 // ---------- 執行控制 ----------
 $('#runBtn').addEventListener('click', () => {
   runtimeWarnings.length = 0; lastWarnKey = null;
-  serialEl.textContent = ''; serialBuf = '';
+  serialEl.textContent = ''; serialBuf = ''; plotter.clear();
   runtime.run(currentCode());
 });
 $('#stopBtn').addEventListener('click', () => runtime.stop());
@@ -142,7 +147,7 @@ $('#serialSend').addEventListener('submit', e => {
   const v = $('#serialInput').value; runtime.rx += v + '\n'; $('#serialInput').value = '';
   serialBuf += `» ${v}\n`;
 });
-$('#serialClear').addEventListener('click', () => { serialEl.textContent = ''; });
+$('#serialClear').addEventListener('click', () => { serialEl.textContent = ''; plotter.clear(); });
 
 // ---------- 零件庫 ----------
 function buildLibrary() {
@@ -219,7 +224,13 @@ function renderInspector(sel) {
       box.insertAdjacentHTML('beforeend', '<div class="muted">參考：夜晚 1 lux、室內 300 lux、陰天 1,000 lux、晴天 10,000+ lux</div>');
       break;
     case 'dht': slider('溫度', 'temp', -40, 80, 0.1, v => v, v => v, ' °C'); slider('濕度', 'hum', 0, 100, 0.5, v => v, v => v, ' %'); break;
-    case 'sr04': slider('障礙物距離', 'distance', 2, 450, 1, v => v, v => v, ' cm'); break;
+    case 'sr04': {
+      slider('障礙物距離', 'distance', 2, 450, 1, v => v, v => v, ' cm');
+      const b = document.createElement('button'); b.className = 'btn';
+      const show = () => { b.textContent = c.props.glitch ? '⚡ 雜訊模式：開（約 1/4 讀值錯誤）' : '雜訊模式：關（點擊開啟）'; };
+      b.addEventListener('click', () => { c.props.glitch = !c.props.glitch; show(); scheduleSave(); });
+      show(); box.appendChild(b); break;
+    }
     case 'pir': {
       const b = document.createElement('button'); b.className = 'btn';
       const show = () => { b.textContent = c.props.motion ? '🚶 有人（點擊改為無人）' : '⬜ 無人（點擊模擬有人經過）'; };
@@ -429,7 +440,7 @@ async function doCheck() {
   const btn = $('#lCheck'), res = $('#lResult');
   btn.disabled = true; btn.textContent = '⏳ 檢查中…'; $('#runBtn').disabled = true;
   res.hidden = false; res.className = 'lresult'; res.innerHTML = '';
-  runtimeWarnings.length = 0; lastWarnKey = null; serialEl.textContent = ''; serialBuf = '';
+  runtimeWarnings.length = 0; lastWarnKey = null; serialEl.textContent = ''; serialBuf = ''; plotter.clear();
   const addStep = st => { const d = document.createElement('div'); d.className = st.ok ? 'ok' : 'bad'; d.textContent = (st.ok ? '✔ ' : '✘ ') + st.msg; res.appendChild(d); res.scrollTop = res.scrollHeight; };
   const r = await runCheck(LEVEL, { circuit, runtime, code: currentCode(), onStep: addStep });
   if (r.ok) {

@@ -265,6 +265,8 @@ export class Runtime {
         if (!trig.length || rt.pins[trig[0]].mode !== 'OUTPUT') { rt.warnOnce('trig' + p, 'HC-SR04 的 TRIG 沒有接到設為 OUTPUT 的腳位'); return 0; }
         const d = +s.props.distance;
         if (d > 400 || d < 2) { await rt.sleep(Math.min(timeout / 1000, 38)); return d > 400 ? 0 : 116; }
+        // 雜訊模式：模擬真實超音波偶爾量到 0 或超出範圍的錯誤值
+        if (s.props.glitch && Math.random() < 0.25) { await rt.sleep(2); return Math.random() < 0.5 ? 0 : 23800; }
         const us = Math.round(d * 58);
         await rt.sleep(Math.max(1, us / 1000));
         return us;

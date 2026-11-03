@@ -30,7 +30,7 @@ export const ISLANDS = [
   { id: 1, name: '啟航星', icon: '⚓', color: '#4fa3e0', theme: '數位輸出與時間控制', desc: '從零開始接出第一個電路，掌握 pinMode、digitalWrite 與 delay 的節奏感。' },
   { id: 2, name: '光之星', icon: '💡', color: '#f2b84b', theme: 'PWM 與多燈控制', desc: '用 analogWrite 調出漸層亮度，練習時間序列與狀態切換。' },
   { id: 3, name: '開關星', icon: '🔘', color: '#5cbf7a', theme: '數位輸入與序列埠', desc: '讀取按鈕、處理機械彈跳，並透過序列埠和 Arduino 對話。' },
-  { id: 4, name: '感測星', icon: '🌡️', color: '#e07a5f', theme: '感測器與校正', desc: '光敏、溫溼度、超音波；學會校正、遲滯與濾波。', locked: true },
+  { id: 4, name: '感測星', icon: '🌡️', color: '#e07a5f', theme: '感測器：校正、遲滯、濾波', desc: '真實世界的感測器數值會漂移、跳動、有雜訊。學會用校正、遲滯與濾波，讓機器做出穩定的判斷。' },
   { id: 5, name: '動力星', icon: '⚙️', color: '#9b8ec4', theme: '伺服與馬達', desc: '讓東西動起來：伺服角度控制、馬達與繼電器。', locked: true },
   { id: 6, name: '顯示星', icon: '🖥️', color: '#5fb3b3', theme: '顯示裝置', desc: '七段顯示器、LCD1602、燈條。', locked: true },
   { id: 7, name: '專題星', icon: '🏆', color: '#c8963e', theme: '綜合專題', desc: '狀態機與多工整合：倒車雷達、溫控風扇、自動澆花。', locked: true },
@@ -497,6 +497,293 @@ void loop() {
       ctx.send('off'); await ctx.wait(400);
       ctx.expect(!ctx.ledOn(led), '輸入 off → LED 熄', '輸入 off 後 LED 沒有熄滅');
       ctx.expect(/LED OFF/i.test(ctx.serial().slice(mark)), '回覆了 LED OFF', '輸入 off 後沒有回覆「LED OFF」');
+    },
+  },
+  // ================= 第 4 顆星球 感測星 =================
+  {
+    id: '4-1', island: 4, title: '自動路燈校正', brief: '越暗越亮：先量測，再決定 map 的範圍',
+    goal: [
+      '光敏模組 AO → <b>A0</b>，路燈 LED 接 <b>~9</b>（電路已接好）',
+      '<b>夜晚</b>（1 lux）亮度 ≥ 200；<b>白天</b>（2000 lux）完全熄滅（≤ 15）；<b>黃昏</b>（50 lux）介於中間',
+      '先用 <code>Serial.println(analogRead(A0))</code> 搭配序列埠的 <b>📈 繪圖</b>，選取 ldr1 拖動亮度滑桿，量出夜晚和白天的讀值',
+      '再用 <code>map()</code> + <code>constrain()</code> 把讀值換算成 0~255',
+    ],
+    starter: {
+      mode: 'code',
+      circuit: circuit(ledKit(9, 1, 330, 'white'), {
+        parts: [{ id: 'ldr1', type: 'ldr', x: 420, y: 470, props: { lux: 300, threshold: 512 } }],
+        wires: [{ a: 'ldr1:AO', b: 'uno:A0', color: '#2e7d32' }, { a: 'ldr1:VCC', b: 'uno:5V', color: '#d32f2f' }, { a: 'ldr1:GND', b: 'uno:GND.2', color: '#222' }],
+      }),
+      code: `const int LDR = A0, LAMP = 9;
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(LAMP, OUTPUT);
+}
+
+void loop() {
+  int raw = analogRead(LDR);
+  Serial.println(raw);       // 先觀察：越暗數值越大還是越小？
+  delay(100);
+}
+`,
+    },
+    hints: [
+      '量測結果：1 lux 約 980、50 lux 約 630、2000 lux 約 110（越暗數值越大）。',
+      'int level = map(raw, 白天讀值, 夜晚讀值, 0, 255); 再用 constrain(level, 0, 255) 防止超出範圍。',
+      '白天讀值可以抓得比 110 略高（例如 150），讓白天確實全熄。',
+    ],
+    solution: {
+      mode: 'code',
+      code: `const int LDR = A0, LAMP = 9;
+const int BRIGHT = 150;   // 白天的讀值（量測後校正）
+const int DARK = 950;     // 夜晚的讀值
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(LAMP, OUTPUT);
+}
+
+void loop() {
+  int raw = analogRead(LDR);
+  int level = constrain(map(raw, BRIGHT, DARK, 0, 255), 0, 255);
+  analogWrite(LAMP, level);
+  Serial.print("raw:");
+  Serial.print(raw);
+  Serial.print(" lamp:");
+  Serial.println(level);
+  delay(100);
+}
+`,
+    },
+    async check(ctx) {
+      const led = needLed(ctx, 9);
+      const ldr = ctx.parts('ldr').find(l => ctx.linked(l.id + ':AO', 'uno:A0'));
+      ctx.expect(ldr, '光敏模組 AO 接在 A0', '找不到 AO 接在 A0 的光敏模組，可按「重設關卡」');
+      const meas = async lux => { ctx.setProp(ldr, 'lux', lux); await ctx.wait(600); return ctx.pinOut(9); };
+      const night = await meas(1);
+      ctx.expect(night >= 200, `夜晚（1 lux）路燈亮度 ${night}`, `夜晚（1 lux）亮度只有 ${night}，要 ≥ 200`);
+      const day = await meas(2000);
+      ctx.expect(day <= 15, `白天（2000 lux）路燈亮度 ${day}，已熄滅`, `白天（2000 lux）亮度還有 ${day}，要 ≤ 15（白天的校正值可以再抓高一點）`);
+      const dusk = await meas(50);
+      ctx.expect(dusk > 30 && dusk < night - 10, `黃昏（50 lux）亮度 ${dusk}，介於中間`, `黃昏（50 lux）亮度 ${dusk}，應該介於白天與夜晚之間——要用 map 做「漸進」調整，不是只有開關`);
+      const deep = await meas(5);
+      ctx.expect(deep > dusk, `更暗（5 lux）時更亮：${deep}`, `5 lux 的亮度 ${deep} 沒有比 50 lux 時亮，方向可能相反`);
+      ctx.setProp(ldr, 'lux', 300);
+    },
+  },
+  {
+    id: '4-2', island: 4, title: '溫控風扇（遲滯）', brief: '30°C 開、28°C 才關，避免開開關關',
+    goal: [
+      'DHT22 SDA → <b>D2</b>，風扇指示燈（藍色 LED）接 <b>D13</b>（電路已接好）',
+      '溫度 <b>≥ 30°C</b> 時開風扇；溫度要降到 <b>≤ 28°C</b> 才關掉',
+      '在 28~30°C 之間時<b>維持原本狀態</b>——這就是「遲滯（hysteresis）」',
+      'DHT22 每 2 秒才能讀一次，請用 millis() 控制讀取間隔',
+    ],
+    starter: {
+      mode: 'code',
+      circuit: circuit(ledKit(13, 1, 200, 'blue'), {
+        parts: [{ id: 'dht1', type: 'dht', x: 430, y: 40, props: { temp: 26, hum: 60 } }],
+        wires: [{ a: 'dht1:VCC', b: 'uno:5V', color: '#d32f2f' }, { a: 'dht1:GND', b: 'uno:GND.2', color: '#222' }, { a: 'dht1:SDA', b: 'uno:2', color: '#2e7d32' }],
+      }),
+      code: `#include <DHT.h>
+
+DHT dht(2, DHT22);
+const int FAN = 13;
+
+void setup() {
+  Serial.begin(9600);
+  dht.begin();
+  pinMode(FAN, OUTPUT);
+}
+
+void loop() {
+
+}
+`,
+    },
+    hints: [
+      '只用一個門檻（if (t >= 30) 開 else 關）的話，溫度在 30 附近抖動時風扇會一直切換。',
+      '用 bool fanOn 記住目前狀態：if (!fanOn && t >= 30) fanOn = true; if (fanOn && t <= 28) fanOn = false;',
+      'if (millis() - lastRead >= 2000) { lastRead = millis(); 讀溫度… }',
+    ],
+    solution: {
+      mode: 'code',
+      code: `#include <DHT.h>
+
+DHT dht(2, DHT22);
+const int FAN = 13;
+const float ON_TEMP = 30.0, OFF_TEMP = 28.0;
+bool fanOn = false;
+unsigned long lastRead = 0;
+
+void setup() {
+  Serial.begin(9600);
+  dht.begin();
+  pinMode(FAN, OUTPUT);
+}
+
+void loop() {
+  if (millis() - lastRead >= 2000) {
+    lastRead = millis();
+    float t = dht.readTemperature();
+    if (isnan(t)) return;
+    if (!fanOn && t >= ON_TEMP) fanOn = true;
+    if (fanOn && t <= OFF_TEMP) fanOn = false;
+    digitalWrite(FAN, fanOn);
+    Serial.print("temp:");
+    Serial.print(t, 1);
+    Serial.print(" fan:");
+    Serial.println(fanOn ? 1 : 0);
+  }
+}
+`,
+    },
+    async check(ctx) {
+      const led = needLed(ctx, 13);
+      const dht = ctx.parts('dht').find(d => ctx.linked(d.id + ':SDA', 'uno:2'));
+      ctx.expect(dht, 'DHT22 接在 D2', '找不到 SDA 接在 D2 的 DHT22，可按「重設關卡」');
+      ctx.note('依序改變溫度，每次等 2.4 秒讓程式讀取…');
+      const steps = [
+        [26, false, '26°C：風扇關', '26°C 時風扇不該開'],
+        [30.5, true, '升到 30.5°C：風扇開', '溫度升到 30.5°C，風扇沒有開'],
+        [29, true, '降到 29°C：風扇維持開（遲滯）', '29°C 就關掉了——沒有遲滯，溫度在 30°C 附近時風扇會一直開開關關'],
+        [27.5, false, '降到 27.5°C：風扇關', '降到 27.5°C 風扇還沒關，要 ≤ 28°C 就關'],
+        [29.5, false, '回升到 29.5°C：維持關（遲滯）', '29.5°C 就開了——要到 30°C 才開'],
+        [31, true, '升到 31°C：再次開啟', '溫度升到 31°C，風扇沒有再次開啟'],
+      ];
+      for (const [t, want, ok, bad] of steps) {
+        ctx.setProp(dht, 'temp', t);
+        await ctx.wait(2400);
+        ctx.expect(ctx.ledOn(led) === want, ok, bad);
+      }
+    },
+  },
+  {
+    id: '4-3', island: 4, title: '停車雷達（濾波）', brief: '超音波有雜訊時，燈號也不能亂跳',
+    goal: [
+      'HC-SR04：TRIG <b>D8</b>、ECHO <b>D7</b>；燈號：紅 D12、黃 D11、綠 D10（電路已接好）',
+      '距離 <b>&lt; 20 cm 紅燈</b>、<b>20~50 cm 黃燈</b>、<b>&gt; 50 cm 綠燈</b>，一次只亮一盞',
+      '超音波已開啟<b>雜訊模式</b>：約 1/4 的讀值會是 0 或超過 400 cm 的錯誤值',
+      '要<b>濾掉錯誤值</b>，讓燈號穩定不閃爍（提示：丟掉不合理的值、取多次量測的中位數）',
+    ],
+    starter: {
+      mode: 'code',
+      circuit: circuit(ledKit(12, 1, 160, 'red'), ledKit(11, 2, 300, 'yellow'), ledKit(10, 3, 440, 'green'), {
+        parts: [{ id: 'sr04_1', type: 'sr04', x: 390, y: 500, props: { distance: 35, glitch: true } }],
+        wires: [{ a: 'sr04_1:VCC', b: 'uno:5V', color: '#d32f2f' }, { a: 'sr04_1:GND', b: 'uno:GND.3', color: '#222' },
+          { a: 'sr04_1:TRIG', b: 'uno:8', color: '#1565c0' }, { a: 'sr04_1:ECHO', b: 'uno:7', color: '#2e7d32' }],
+      }),
+      code: `const int TRIG = 8, ECHO = 7;
+const int RED = 12, YELLOW = 11, GREEN = 10;
+
+float readOnce() {
+  digitalWrite(TRIG, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG, LOW);
+  return pulseIn(ECHO, HIGH) / 58.0;
+}
+
+void setup() {
+  pinMode(TRIG, OUTPUT);
+  pinMode(ECHO, INPUT);
+  pinMode(RED, OUTPUT);
+  pinMode(YELLOW, OUTPUT);
+  pinMode(GREEN, OUTPUT);
+  Serial.begin(9600);
+}
+
+void loop() {
+  float d = readOnce();
+  Serial.println(d);   // 打開 📈 繪圖 看看雜訊長什麼樣子
+
+  delay(50);
+}
+`,
+    },
+    hints: [
+      '先打開 📈 繪圖：會看到距離線不時掉到 0 或跳到 400 以上。',
+      '最簡單的濾波：讀到 d <= 0 或 d > 400 就丟掉，沿用上一次的好值。',
+      '更穩的做法：連續讀 5 次有效值，排序後取中間那個（中位數）。',
+    ],
+    solution: {
+      mode: 'code',
+      code: `const int TRIG = 8, ECHO = 7;
+const int RED = 12, YELLOW = 11, GREEN = 10;
+float lastGood = 100;
+
+float readOnce() {
+  digitalWrite(TRIG, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG, LOW);
+  return pulseIn(ECHO, HIGH) / 58.0;
+}
+
+// 讀 5 個合理的值，取中位數
+float readFiltered() {
+  float v[5];
+  int n = 0;
+  for (int tries = 0; tries < 15 && n < 5; tries++) {
+    float d = readOnce();
+    if (d > 0 && d <= 400) { v[n] = d; n++; }
+  }
+  if (n == 0) return lastGood;
+  for (int i = 1; i < n; i++) {        // 插入排序
+    float key = v[i];
+    int j = i - 1;
+    while (j >= 0 && v[j] > key) { v[j + 1] = v[j]; j--; }
+    v[j + 1] = key;
+  }
+  lastGood = v[n / 2];
+  return lastGood;
+}
+
+void show(int r, int y, int g) {
+  digitalWrite(RED, r);
+  digitalWrite(YELLOW, y);
+  digitalWrite(GREEN, g);
+}
+
+void setup() {
+  pinMode(TRIG, OUTPUT);
+  pinMode(ECHO, INPUT);
+  pinMode(RED, OUTPUT);
+  pinMode(YELLOW, OUTPUT);
+  pinMode(GREEN, OUTPUT);
+  Serial.begin(9600);
+}
+
+void loop() {
+  float d = readFiltered();
+  if (d < 20) show(1, 0, 0);
+  else if (d <= 50) show(0, 1, 0);
+  else show(0, 0, 1);
+  Serial.print("distance:");
+  Serial.println(d);
+  delay(30);
+}
+`,
+    },
+    async check(ctx) {
+      const r = needLed(ctx, 12), y = needLed(ctx, 11), g = needLed(ctx, 10);
+      const sr = ctx.parts('sr04').find(s => ctx.linked(s.id + ':ECHO', 'uno:7'));
+      ctx.expect(sr, 'HC-SR04 的 ECHO 接在 D7', '找不到 ECHO 接在 D7 的超音波模組，可按「重設關卡」');
+      ctx.setProp(sr, 'glitch', true);
+      ctx.note('雜訊模式已開啟，逐一測試不同距離…');
+      const names = { R: '紅', Y: '黃', G: '綠' };
+      for (const [dist, want] of [[35, 'Y'], [80, 'G'], [12, 'R'], [45, 'Y']]) {
+        ctx.setProp(sr, 'distance', dist);
+        await ctx.wait(700);
+        const samples = await ctx.sample(() => (ctx.ledOn(r) ? 'R' : '') + (ctx.ledOn(y) ? 'Y' : '') + (ctx.ledOn(g) ? 'G' : ''), 2500, 20);
+        const okFrac = samples.filter(s => s.v === want).length / samples.length;
+        const others = [...new Set(samples.map(s => s.v).filter(v => v !== want))].map(v => v ? [...v].map(c => names[c]).join('+') : '全暗');
+        ctx.expect(okFrac >= 0.92, `${dist} cm：${names[want]}燈穩定（${Math.round(okFrac * 100)}%）`,
+          `${dist} cm 時${names[want]}燈只亮了 ${Math.round(okFrac * 100)}% 的時間，其他時候變成 ${others.join('、') || '—'}${okFrac > 0.3 ? '——錯誤讀值沒有被濾掉' : ''}`);
+      }
     },
   },
 ];

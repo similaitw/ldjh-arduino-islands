@@ -137,6 +137,9 @@ export function transpile(source) {
 
   // int 變數的指定 → 取整數（模擬整數除法）
   if (info.intVars.size) s = wrapIntAssignments(s, info.intVars);
+
+  // 陣列索引一定是整數：v[n / 2] → v[__i(n / 2)]
+  s = s.replace(/\[([^\[\]\n]*\/[^\[\]\n]*)\]/g, (m, e) => `[__i(${e})]`);
   s = s.replace(/\u0001/g, '');
 
   // String 方法差異（Arduino 的 trim/toUpperCase/toLowerCase 會直接修改字串）
