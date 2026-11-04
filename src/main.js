@@ -459,3 +459,4 @@ async function doCheck() {
   checking = false;
 }
 window.addEventListener('resize', () => Blockly.svgResize(ws));
+window.__ardu = { ws, generateC, Blockly };  // 供除錯與自動測試使用

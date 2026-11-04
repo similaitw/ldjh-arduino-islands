@@ -31,7 +31,7 @@ export class Runtime {
 
   reset() {
     this.pins = Array.from({ length: 20 }, () => ({ mode: 'INPUT', value: 0, pwm: null }));
-    this.tones = {}; this.servos = []; this.rx = '';
+    this.tones = {}; this.servos = []; this.rx = ''; this.lcds = []; this.strips = [];
     this.serialLog = ''; this.writeLog = []; this.lastError = null;
     this.running = false; this.stopped = true; this.warned = new Set();
     this.updateSound();
@@ -199,8 +199,43 @@ export class Runtime {
       computeHeatIndex(t, h) { return t; }
     }
 
+    class LiquidCrystal_I2C {
+      constructor(addr = 0x27, cols = 16, rows = 2) { this.cols = Math.min(cols, 16); this.rows = Math.min(rows, 2); this.buf = new Array(32).fill(32); this.cx = 0; this.cy = 0; this.light = false; rt.lcds.push(this); }
+      init() { this.clear(); } begin() { this.clear(); }
+      backlight() { this.light = true; } noBacklight() { this.light = false; }
+      clear() { this.buf.fill(32); this.cx = 0; this.cy = 0; } home() { this.cx = 0; this.cy = 0; }
+      setCursor(c, r) { this.cx = Math.trunc(c); this.cy = Math.max(0, Math.min(1, Math.trunc(r))); }
+      print(v, f) {
+        for (const ch of fmt(v, f)) {
+          if (this.cx >= 0 && this.cx < 16) this.buf[this.cy * 16 + this.cx] = ch.charCodeAt(0) < 128 ? ch.charCodeAt(0) : 63;
+          this.cx++;
+        }
+        if (/[^\x00-\x7f]/.test(String(v))) rt.warnOnce('lcdcjk', 'LCD1602 只能顯示英文、數字與符號，中文會變成「?」');
+      }
+      write(c) { this.print(typeof c === 'number' ? String.fromCharCode(c) : c); }
+      display() {} noDisplay() {} cursor() {} noCursor() {} blink() {} noBlink() {} createChar() {}
+      text() { const b = this.buf.map(c => String.fromCharCode(c)).join(''); return [b.slice(0, 16), b.slice(16, 32)]; }
+    }
+
+    class Adafruit_NeoPixel {
+      constructor(n = 8, pin = 6) { this.n = n; this.pin = pin; this.px = new Array(n).fill(0); this.shown = new Array(n).fill(0); this.bright = 255; rt.strips.push(this); }
+      begin() {} 
+      show() { const k = this.bright / 255; this.shown = this.px.map(v => (Math.round(((v >> 16) & 255) * k) << 16) | (Math.round(((v >> 8) & 255) * k) << 8) | Math.round((v & 255) * k)); }
+      setPixelColor(i, r, g, b) {
+        i = Math.trunc(i); if (i < 0 || i >= this.n) return;
+        this.px[i] = g === undefined ? (r >>> 0) & 0xffffff : this.Color(r, g, b);
+      }
+      Color(r, g, b) { const c = x => Math.max(0, Math.min(255, Math.trunc(x))); return (c(r) << 16) | (c(g) << 8) | c(b); }
+      getPixelColor(i) { return this.px[i] || 0; }
+      clear() { this.px.fill(0); }
+      fill(color = 0, first = 0, count = 0) { const end = count ? first + count : this.n; for (let i = first; i < end && i < this.n; i++) this.px[i] = color; }
+      setBrightness(b) { this.bright = Math.max(0, Math.min(255, b)); }
+      numPixels() { return this.n; }
+    }
+
     const api = {
       __tick: () => rt.tick(),
+      LiquidCrystal_I2C, Adafruit_NeoPixel, NEO_GRB: 0, NEO_RGB: 0, NEO_KHZ800: 0,
       __i: v => { const n = Math.trunc(Number(v)); return Number.isFinite(n) ? n : 0; },
       Serial, Servo, DHT,
       HIGH: 1, LOW: 0, INPUT: 'INPUT', OUTPUT: 'OUTPUT', INPUT_PULLUP: 'INPUT_PULLUP', LED_BUILTIN: 13,

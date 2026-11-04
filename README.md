@@ -9,7 +9,7 @@
 - `lab.html`：線上實驗室（自由模式）
 - `lab.html#level-1-2`：關卡模式，含任務說明、自動檢查、提示與參考解答
 
-## 關卡（內圈 5 顆星球已開放）
+## 關卡（內圈 6 顆星球已開放）
 
 | 星球 | 關卡 |
 |---|---|
@@ -18,6 +18,7 @@
 | 🔘 開關星 | 3-1 按住才亮、3-2 按一下切換（去彈跳）、3-3 序列埠遙控器 |
 | 🌡️ 感測星 | 4-1 自動路燈校正、4-2 溫控風扇（遲滯）、4-3 停車雷達（濾波，超音波雜訊模式） |
 | ⚙️ 動力星 | 5-1 伺服平滑跟隨、5-2 馬達調速與換向（L298N）、5-3 定時抽水機（繼電器、緊急停止） |
+| 🖥️ 顯示星 | 6-1 七段顯示器倒數（查表）、6-2 LCD 溫溼度看板（殘影）、6-3 燈條音量表（WS2812） |
 
 自動檢查會實際執行學生的程式，同時操作零件（按按鈕、模擬按鈕彈跳、輸入序列埠文字），並量測 LED 時序、PWM 數值與序列埠輸出。
 
@@ -36,13 +37,13 @@
 
 ## 目前支援的零件
 
-LED、RGB LED（共陰）、無源蜂鳴器、按鈕、可變電阻、光敏電阻模組、DHT22、HC-SR04（可開雜訊模式）、PIR、SG90 伺服馬達、直流馬達、L298N 馬達驅動板、繼電器模組、電阻
+LED、RGB LED（共陰）、無源蜂鳴器、按鈕、可變電阻、光敏電阻模組、DHT22、HC-SR04（可開雜訊模式）、PIR、SG90 伺服馬達、直流馬達、L298N 馬達驅動板、繼電器模組、七段顯示器、LCD1602（I2C）、WS2812 燈條、電阻
 
 ## 模擬器支援的語法
 
 `setup()` / `loop()`、自訂函式、全域 / 區域變數、陣列（含二維）、`#define`、`const`、整數除法、
 `if / for / while / do-while / switch`、`pinMode`、`digitalWrite/Read`、`analogWrite/Read`、`delay`、`millis`、
-`map`、`constrain`、`random`、`tone/noTone`、`pulseIn`、`Serial`、`Servo`、`DHT`
+`map`、`constrain`、`random`、`tone/noTone`、`pulseIn`、`Serial`、`Servo`、`DHT`、`LiquidCrystal_I2C`、`Adafruit_NeoPixel`
 
 尚未支援：`struct` / `class`、指標、`attachInterrupt`、16 位元 `int` 溢位行為。
 

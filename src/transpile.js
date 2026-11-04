@@ -8,7 +8,7 @@ const TYPE_LIST = [
 ];
 const TYPES_RE = TYPE_LIST.map(t => t.replace(/ /g, '\\s+')).join('|');
 const NON_INT = new Set(['float', 'double', 'bool', 'boolean', 'String', 'char']);
-const LIB_CLASSES = ['Servo', 'DHT'];
+const LIB_CLASSES = ['Servo', 'DHT', 'LiquidCrystal_I2C', 'Adafruit_NeoPixel'];
 const ASYNC_BUILTINS = ['delay', 'delayMicroseconds', 'pulseIn'];
 
 export class TranspileError extends Error {

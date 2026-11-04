@@ -59,6 +59,15 @@ export function createCtx({ circuit, runtime, onStep }) {
       for (const p of circuit.unoPinsInNet(sv.id + ':PWM')) { const s = runtime.servoOnPin(p); if (s) return s.angle; }
       return null;
     },
+    // 七段顯示器：把亮起的段落解碼成數字（看不懂回傳 null）
+    seg7Digit(c) {
+      const com = circuit.level(c.id + ':COM.1');
+      const bits = ['A', 'B', 'C', 'D', 'E', 'F', 'G'].map(s => { const v = circuit.level(c.id + ':' + s); return com === 0 && v != null && v > 2.5 ? 1 : 0; }).join('');
+      const T = { '1111110': 0, '0110000': 1, '1101101': 2, '1111001': 3, '0110011': 4, '1011011': 5, '1011111': 6, '1110000': 7, '1111111': 8, '1111011': 9, '0000000': '空白' };
+      return bits in T ? T[bits] : '?' + bits;
+    },
+    lcdLines(c) { const l = circuit.lcdFor(c); return l && circuit.powered(c.id) ? l.text() : null; },
+    stripColors(c) { const st = circuit.stripFor(c); return st && circuit.powered(c.id) ? st.shown.map(v => ({ r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255 })) : null; },
     serial: () => runtime.serialLog,
     writes: pin => runtime.writeLog.filter(w => w.p === pin),
 

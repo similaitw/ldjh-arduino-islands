@@ -10,6 +10,7 @@ const DIGITAL = [...Array(14).keys()].map(i => [String(i), String(i)]).concat(['
 const PWM = ['3', '5', '6', '9', '10', '11'].map(p => ['~' + p, p]);
 const ANALOG = ['A0', 'A1', 'A2', 'A3', 'A4', 'A5'].map(a => [a, a]);
 
+const C_MOTOR = '#7b5fc4', C_DISPLAY = '#16a085';
 const C_IO = '#2f80ed', C_TIME = '#27ae60', C_SERIAL = '#8e44ad', C_SENSOR = '#e67e22', C_OUT = '#c0392b', C_MATH = '#5b67a5';
 
 Blockly.common.defineBlocksWithJsonArray([
@@ -55,6 +56,22 @@ Blockly.common.defineBlocksWithJsonArray([
     previousStatement: null, nextStatement: null, colour: C_OUT },
   { type: 'sr04_read', message0: '超音波距離(cm) Trig %1 Echo %2', args0: [{ type: 'field_dropdown', name: 'TRIG', options: DIGITAL.slice(2, 14) }, { type: 'field_dropdown', name: 'ECHO', options: DIGITAL.slice(2, 14) }], output: 'Number', colour: C_SENSOR },
   { type: 'dht_read', message0: 'DHT22 腳位 %1 讀取 %2', args0: [{ type: 'field_dropdown', name: 'PIN', options: DIGITAL.slice(2, 14) }, { type: 'field_dropdown', name: 'WHAT', options: [['溫度 °C', 'T'], ['濕度 %', 'H']] }], output: 'Number', colour: C_SENSOR },
+  { type: 'motor_drive', message0: '馬達（L298N）ENA %1 IN1 %2 IN2 %3 %4 速度 %5', args0: [
+    { type: 'field_dropdown', name: 'ENA', options: PWM }, { type: 'field_dropdown', name: 'IN1', options: DIGITAL.slice(2, 14) }, { type: 'field_dropdown', name: 'IN2', options: DIGITAL.slice(2, 14) },
+    { type: 'field_dropdown', name: 'DIR', options: [['正轉 ↻', 'F'], ['反轉 ↺', 'B'], ['停止', 'S']] }, { type: 'input_value', name: 'SPEED', check: 'Number' }], inputsInline: true,
+    previousStatement: null, nextStatement: null, colour: C_MOTOR, tooltip: 'IN1/IN2 決定方向，ENA 用 PWM 0~255 控制速度' },
+  { type: 'relay_set', message0: '繼電器 腳位 %1 %2', args0: [{ type: 'field_dropdown', name: 'PIN', options: DIGITAL }, { type: 'field_dropdown', name: 'ST', options: [['吸合 ON（COM↔NO）', 'HIGH'], ['放開 OFF（COM↔NC）', 'LOW']] }],
+    previousStatement: null, nextStatement: null, colour: C_MOTOR },
+  { type: 'seg7_show', message0: '七段顯示器（共陰，a~g 接 D%1 起）顯示 %2', args0: [{ type: 'field_dropdown', name: 'START', options: [['2', '2'], ['3', '3'], ['4', '4'], ['5', '5'], ['6', '6']] }, { type: 'input_value', name: 'N', check: 'Number' }], inputsInline: true,
+    previousStatement: null, nextStatement: null, colour: C_DISPLAY, tooltip: '顯示 0~9；a、b、c、d、e、f、g 依序接連續的腳位' },
+  { type: 'lcd_print', message0: 'LCD 第 %1 行 第 %2 格起 顯示 %3', args0: [{ type: 'field_dropdown', name: 'ROW', options: [['1', '0'], ['2', '1']] }, { type: 'input_value', name: 'COL', check: 'Number' }, { type: 'input_value', name: 'VAL' }], inputsInline: true,
+    previousStatement: null, nextStatement: null, colour: C_DISPLAY, tooltip: 'LCD1602 I2C（SDA→A4、SCL→A5），格數從 0 開始' },
+  { type: 'lcd_clear', message0: 'LCD 清除畫面', previousStatement: null, nextStatement: null, colour: C_DISPLAY },
+  { type: 'strip_set', message0: '燈條 腳位 %1 第 %2 顆 紅 %3 綠 %4 藍 %5', args0: [{ type: 'field_dropdown', name: 'PIN', options: DIGITAL.slice(2, 14) }, { type: 'input_value', name: 'I', check: 'Number' },
+    { type: 'input_value', name: 'R', check: 'Number' }, { type: 'input_value', name: 'G', check: 'Number' }, { type: 'input_value', name: 'B', check: 'Number' }], inputsInline: true,
+    previousStatement: null, nextStatement: null, colour: C_DISPLAY, tooltip: 'WS2812 燈條，第 0 顆開始；設定後要「燈條顯示」才會更新' },
+  { type: 'strip_show', message0: '燈條 腳位 %1 %2', args0: [{ type: 'field_dropdown', name: 'PIN', options: DIGITAL.slice(2, 14) }, { type: 'field_dropdown', name: 'OP', options: [['顯示 show', 'show'], ['全部熄滅 clear', 'clear']] }],
+    previousStatement: null, nextStatement: null, colour: C_DISPLAY },
 ]);
 
 // ---------- 產生器 ----------
@@ -116,6 +133,56 @@ gen.forBlock.dht_read = b => {
   return [`dht_${p}.${b.getFieldValue('WHAT') === 'T' ? 'readTemperature' : 'readHumidity'}()`, Order.FUNCTION_CALL];
 };
 
+gen.forBlock.motor_drive = b => {
+  const ena = b.getFieldValue('ENA'), i1 = b.getFieldValue('IN1'), i2 = b.getFieldValue('IN2'), dir = b.getFieldValue('DIR');
+  gen._setups[`motor_${ena}`] = `pinMode(${ena}, OUTPUT);\n  pinMode(${i1}, OUTPUT);\n  pinMode(${i2}, OUTPUT);`;
+  const sp = dir === 'S' ? '0' : (gen.valueToCode(b, 'SPEED', Order.NONE) || '255');
+  return `digitalWrite(${i1}, ${dir === 'F' ? 'HIGH' : 'LOW'});\ndigitalWrite(${i2}, ${dir === 'B' ? 'HIGH' : 'LOW'});\nanalogWrite(${ena}, ${sp});\n`;
+};
+gen.forBlock.relay_set = b => {
+  const p = b.getFieldValue('PIN');
+  gen._setups[`relay_${p}`] = `pinMode(${p}, OUTPUT);`;
+  return `digitalWrite(${p}, ${b.getFieldValue('ST')});\n`;
+};
+gen.forBlock.seg7_show = b => {
+  const st = +b.getFieldValue('START');
+  gen._defs.seg7Table = `const byte DIGITS[10][7] = {
+  {1,1,1,1,1,1,0}, {0,1,1,0,0,0,0}, {1,1,0,1,1,0,1}, {1,1,1,1,0,0,1}, {0,1,1,0,0,1,1},
+  {1,0,1,1,0,1,1}, {1,0,1,1,1,1,1}, {1,1,1,0,0,0,0}, {1,1,1,1,1,1,1}, {1,1,1,1,0,1,1}
+};`;
+  gen._defs.seg7Fn = `void showDigit(int first, int n) {
+  for (int s = 0; s < 7; s++) {
+    digitalWrite(first + s, DIGITS[n % 10][s]);
+  }
+}`;
+  gen._setups[`seg7_${st}`] = `for (int s = 0; s < 7; s++) pinMode(${st} + s, OUTPUT);`;
+  return `showDigit(${st}, ${gen.valueToCode(b, 'N', Order.NONE) || 0});\n`;
+};
+const lcdSetup = () => {
+  gen._includes.add('#include <LiquidCrystal_I2C.h>');
+  gen._defs.lcd = 'LiquidCrystal_I2C lcd(0x27, 16, 2);';
+  gen._setups.lcd = 'lcd.init();\n  lcd.backlight();';
+};
+gen.forBlock.lcd_print = b => {
+  lcdSetup();
+  return `lcd.setCursor(${gen.valueToCode(b, 'COL', Order.NONE) || 0}, ${b.getFieldValue('ROW')});\nlcd.print(${gen.valueToCode(b, 'VAL', Order.NONE) || '""'});\n`;
+};
+gen.forBlock.lcd_clear = () => { lcdSetup(); return 'lcd.clear();\n'; };
+const stripSetup = p => {
+  gen._includes.add('#include <Adafruit_NeoPixel.h>');
+  gen._defs[`strip_${p}`] = `Adafruit_NeoPixel strip_${p}(8, ${p}, NEO_GRB + NEO_KHZ800);`;
+  gen._setups[`strip_${p}`] = `strip_${p}.begin();`;
+};
+gen.forBlock.strip_set = b => {
+  const p = b.getFieldValue('PIN'); stripSetup(p);
+  const v = k => gen.valueToCode(b, k, Order.NONE) || 0;
+  return `strip_${p}.setPixelColor(${v('I')}, strip_${p}.Color(${v('R')}, ${v('G')}, ${v('B')}));\n`;
+};
+gen.forBlock.strip_show = b => {
+  const p = b.getFieldValue('PIN'); stripSetup(p);
+  return `strip_${p}.${b.getFieldValue('OP')}();\n`;
+};
+
 // 標準積木的 C 版本覆寫
 gen.forBlock.text = b => [JSON.stringify(b.getFieldValue('TEXT')), Order.ATOMIC];
 gen.forBlock.math_change = b => {
@@ -171,10 +238,21 @@ export const TOOLBOX = {
     { kind: 'category', name: '感測器', colour: C_SENSOR, contents: [
       { kind: 'block', type: 'sr04_read' }, { kind: 'block', type: 'dht_read' },
     ] },
-    { kind: 'category', name: '輸出裝置', colour: C_OUT, contents: [
+    { kind: 'category', name: '聲音', colour: C_OUT, contents: [
       { kind: 'block', type: 'tone_play', inputs: { F: { shadow: { type: 'math_number', fields: { NUM: 440 } } } } },
       { kind: 'block', type: 'tone_stop' },
+    ] },
+    { kind: 'category', name: '動力', colour: C_MOTOR, contents: [
       { kind: 'block', type: 'servo_write', inputs: { A: { shadow: { type: 'math_number', fields: { NUM: 90 } } } } },
+      { kind: 'block', type: 'motor_drive', fields: { ENA: '5', IN1: '7', IN2: '8' }, inputs: { SPEED: { shadow: { type: 'math_number', fields: { NUM: 200 } } } } },
+      { kind: 'block', type: 'relay_set', fields: { PIN: '4' } },
+    ] },
+    { kind: 'category', name: '顯示', colour: C_DISPLAY, contents: [
+      { kind: 'block', type: 'seg7_show', inputs: { N: { shadow: { type: 'math_number', fields: { NUM: 8 } } } } },
+      { kind: 'block', type: 'lcd_print', inputs: { COL: { shadow: { type: 'math_number', fields: { NUM: 0 } } }, VAL: { shadow: { type: 'text', fields: { TEXT: 'Hello' } } } } },
+      { kind: 'block', type: 'lcd_clear' },
+      { kind: 'block', type: 'strip_set', fields: { PIN: '6' }, inputs: { I: { shadow: { type: 'math_number', fields: { NUM: 0 } } }, R: { shadow: { type: 'math_number', fields: { NUM: 255 } } }, G: { shadow: { type: 'math_number', fields: { NUM: 0 } } }, B: { shadow: { type: 'math_number', fields: { NUM: 0 } } } } },
+      { kind: 'block', type: 'strip_show', fields: { PIN: '6' } },
     ] },
     { kind: 'sep' },
     { kind: 'category', name: '邏輯', categorystyle: 'logic_category', contents: [

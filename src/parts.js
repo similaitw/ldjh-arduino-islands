@@ -37,18 +37,24 @@ export const PARTS = {
     desc: 'IN1/IN2 控制方向（一高一低轉、相同則停），ENA 接 PWM 腳位控制轉速（ENA 不接 = 全速）。OUT1/OUT2 接馬達，VCC 接 5V。' },
   relay: { tag: 'ardu-relay', name: '繼電器模組', cat: 'motion', prefix: 'relay',
     desc: 'IN 為 HIGH 時吸合：COM 與 NO 導通；平時 COM 與 NC 導通。用小訊號控制大電流負載（抽水馬達、燈泡）。（真實模組有些是低電位觸發）' },
+  seg7: { tag: 'wokwi-7segment', name: '七段顯示器（共陰）', cat: 'display', prefix: 'seg', props: { color: 'red' },
+    desc: 'COM 接 GND；A~G 各段接數位腳位，輸出 HIGH 該段就亮。真實電路每段要串電阻。' },
+  lcd: { tag: 'wokwi-lcd1602', name: 'LCD1602（I2C）', cat: 'display', prefix: 'lcd',
+    desc: 'SDA→A4、SCL→A5、VCC→5V。使用 LiquidCrystal_I2C：lcd.init(); lcd.backlight(); lcd.setCursor(格, 行); lcd.print(...)' },
+  strip: { tag: 'wokwi-neopixel-matrix', name: 'WS2812 燈條（8 顆）', cat: 'display', prefix: 'strip',
+    desc: 'DIN 接數位腳位，VCC→5V。使用 Adafruit_NeoPixel：strip.setPixelColor(i, strip.Color(r, g, b)); strip.show();' },
   resistor: { tag: 'wokwi-resistor', name: '電阻', cat: 'passive', prefix: 'r', props: { value: 220 },
     desc: 'LED 限流常用 220Ω；按鈕下拉電阻常用 10kΩ。' },
 };
 
 // 規劃中、尚未開放的零件（顯示在零件庫中）
 export const COMING = {
-  output: ['WS2812 燈條'],
+  output: [],
   input: ['類比搖桿', '4×4 薄膜鍵盤', '紅外線遙控接收'],
   env: ['土壤濕度', '雨滴感測', '聲音感測'],
   distance: ['紅外線循跡', '傾斜開關'],
   motion: ['步進馬達'],
-  display: ['LCD1602 (I2C)', '七段顯示器', 'OLED 128×64'],
+  display: ['OLED 128×64', '四位數七段'],
   passive: [],
 };
 

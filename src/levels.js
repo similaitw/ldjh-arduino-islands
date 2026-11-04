@@ -32,7 +32,7 @@ export const ISLANDS = [
   { id: 3, name: '開關星', icon: '🔘', color: '#5cbf7a', theme: '數位輸入與序列埠', desc: '讀取按鈕、處理機械彈跳，並透過序列埠和 Arduino 對話。' },
   { id: 4, name: '感測星', icon: '🌡️', color: '#e07a5f', theme: '感測器：校正、遲滯、濾波', desc: '真實世界的感測器數值會漂移、跳動、有雜訊。學會用校正、遲滯與濾波，讓機器做出穩定的判斷。' },
   { id: 5, name: '動力星', icon: '⚙️', color: '#9b8ec4', theme: '伺服、馬達與繼電器', desc: '讓東西動起來：伺服的平滑控制、用驅動板控制馬達轉速與方向、用繼電器開關大電流負載。' },
-  { id: 6, name: '顯示星', icon: '🖥️', color: '#5fb3b3', theme: '顯示裝置', desc: '七段顯示器、LCD1602、燈條。', locked: true },
+  { id: 6, name: '顯示星', icon: '🖥️', color: '#5fb3b3', theme: '七段、LCD 與燈條', desc: '把資訊顯示出來：七段顯示器查表、LCD 排版與殘影處理、WS2812 全彩燈條。' },
   { id: 7, name: '專題星', icon: '🏆', color: '#c8963e', theme: '綜合專題', desc: '狀態機與多工整合：倒車雷達、溫控風扇、自動澆花。', locked: true },
 ];
 
@@ -1034,6 +1034,291 @@ void loop() {
       ctx.expect(!on(), '抽水中按下：緊急停止', '抽水中按按鈕沒有立刻停止——如果用了 delay(3000)，等待期間按鈕會沒反應');
       await ctx.wait(2500);
       ctx.expect(!on(), '緊急停止後保持停止', '緊急停止後抽水機又自己啟動了');
+    },
+  },
+  // ================= 第 6 顆星球 顯示星 =================
+  {
+    id: '6-1', island: 6, title: '七段顯示器倒數', brief: '9、8、7…0，每秒減一，用陣列查表',
+    goal: [
+      '共陰七段顯示器：段 <b>A~G 依序接 D2~D8</b>，COM 接 GND（電路已接好）',
+      '從 <b>9 倒數到 0</b>，每個數字顯示 <b>1 秒</b>；到 0 後停 2 秒再從 9 重新開始',
+      '起始程式的字形表還缺 <b>5 和 6</b>，請自己對照段落圖補上',
+      '寫一個 <code>showDigit(int n)</code>，用迴圈把表格的 7 個值寫到 7 支腳位',
+    ],
+    starter: {
+      mode: 'code',
+      circuit: circuit({
+        parts: [{ id: 'seg1', type: 'seg7', x: 420, y: 70 }],
+        wires: [['A', 2], ['B', 3], ['C', 4], ['D', 5], ['E', 6], ['F', 7], ['G', 8]].map(([s, p], k) => ({ a: 'seg1:' + s, b: 'uno:' + p, color: ['#d32f2f', '#e67e22', '#f1c40f', '#2e7d32', '#1565c0', '#8e44ad', '#795548'][k] }))
+          .concat([{ a: 'seg1:COM.1', b: 'uno:GND.1', color: '#222' }]),
+      }),
+      code: `//      A
+//     ───
+//  F │   │ B
+//     ─G─
+//  E │   │ C
+//     ───
+//      D
+const int FIRST = 2;   // A 接 D2、B 接 D3 … G 接 D8
+
+// 每一列是一個數字的 A B C D E F G（1 = 亮）
+const byte DIGITS[10][7] = {
+  {1,1,1,1,1,1,0},  // 0
+  {0,1,1,0,0,0,0},  // 1
+  {1,1,0,1,1,0,1},  // 2
+  {1,1,1,1,0,0,1},  // 3
+  {0,1,1,0,0,1,1},  // 4
+  {0,0,0,0,0,0,0},  // 5  ← 請補上
+  {0,0,0,0,0,0,0},  // 6  ← 請補上
+  {1,1,1,0,0,0,0},  // 7
+  {1,1,1,1,1,1,1},  // 8
+  {1,1,1,1,0,1,1},  // 9
+};
+
+void setup() {
+  for (int i = 0; i < 7; i++) pinMode(FIRST + i, OUTPUT);
+}
+
+void loop() {
+
+}
+`,
+    },
+    hints: [
+      '5 亮的段：A、F、G、C、D；6 再多一個 E。',
+      'void showDigit(int n) { for (int s = 0; s < 7; s++) digitalWrite(FIRST + s, DIGITS[n][s]); }',
+      'loop 裡：for (int n = 9; n >= 0; n--) { showDigit(n); delay(1000); } delay(2000);',
+    ],
+    solution: {
+      mode: 'code',
+      code: `const int FIRST = 2;
+
+const byte DIGITS[10][7] = {
+  {1,1,1,1,1,1,0},  // 0
+  {0,1,1,0,0,0,0},  // 1
+  {1,1,0,1,1,0,1},  // 2
+  {1,1,1,1,0,0,1},  // 3
+  {0,1,1,0,0,1,1},  // 4
+  {1,0,1,1,0,1,1},  // 5
+  {1,0,1,1,1,1,1},  // 6
+  {1,1,1,0,0,0,0},  // 7
+  {1,1,1,1,1,1,1},  // 8
+  {1,1,1,1,0,1,1},  // 9
+};
+
+void showDigit(int n) {
+  for (int s = 0; s < 7; s++) {
+    digitalWrite(FIRST + s, DIGITS[n][s]);
+  }
+}
+
+void setup() {
+  for (int i = 0; i < 7; i++) pinMode(FIRST + i, OUTPUT);
+}
+
+void loop() {
+  for (int n = 9; n >= 0; n--) {
+    showDigit(n);
+    delay(1000);
+  }
+  delay(2000);   // 停在 0
+}
+`,
+    },
+    async check(ctx) {
+      const seg = ctx.parts('seg7').find(x => ctx.linked(x.id + ':A', 'uno:2'));
+      ctx.expect(seg && ctx.toGnd(seg.id + ':COM.1'), '七段顯示器 A 接 D2、COM 接 GND', '找不到 A 接 D2、COM 接 GND 的七段顯示器，可按「重設關卡」');
+      ctx.note('記錄 7 秒的顯示內容…');
+      const segs = segments(await ctx.sample(() => ctx.seg7Digit(seg), 7000, 20)).filter(x => x.dur > 120);
+      const seq = segs.map(x => x.k);
+      const bad = seq.find(k => typeof k === 'string' && k.startsWith('?'));
+      ctx.expect(!bad, '每個字形都正確', `出現看不懂的字形（A~G = ${bad?.slice(1)}）——檢查字形表，尤其是 5 和 6`);
+      ctx.expect(seq[0] === 9, '從 9 開始', `一開始顯示的是 ${seq[0] ?? '（沒有）'}，要從 9 開始`);
+      const want = [9, 8, 7, 6, 5, 4, 3];
+      const okSeq = seq.slice(0, 6).every((k, i) => k === want[i]);
+      ctx.expect(seq.length >= 6 && okSeq, `依序倒數：${seq.slice(0, 7).join(' → ')}`, `顯示順序是 ${seq.slice(0, 7).join(' → ')}，應該是 9 → 8 → 7 → 6 → 5 …${seq.includes('空白') ? '（有數字變成空白——字形表的 5、6 還沒補）' : ''}`);
+      const d = avg(segs.slice(1, 6).map(x => x.dur));
+      ctx.expect(Math.abs(d - 1000) <= 150, `每個數字約 ${ms(d)}`, `每個數字顯示約 ${ms(d)}，目標 1000 ms`);
+    },
+  },
+  {
+    id: '6-2', island: 6, title: 'LCD 溫溼度看板', brief: '在 LCD 上顯示溫度與濕度，不能留下殘影',
+    goal: [
+      'LCD1602（I2C）：<b>SDA→A4、SCL→A5</b>；DHT22 SDA → <b>D2</b>（電路已接好）',
+      '第 1 行顯示溫度（<b>小數 1 位</b>，例如 <code>Temp: 26.5 C</code>），第 2 行顯示濕度（例如 <code>Hum: 62 %</code>）',
+      '每 2 秒更新一次',
+      '數字變短時（100 → 9）<b>不能留下舊字</b>：要清除或用空白蓋掉',
+    ],
+    starter: {
+      mode: 'code',
+      circuit: circuit({
+        parts: [{ id: 'lcd1', type: 'lcd', x: 320, y: 30 }, { id: 'dht1', type: 'dht', x: 440, y: 470, props: { temp: 26.5, hum: 62 } }],
+        wires: [{ a: 'lcd1:SDA', b: 'uno:A4', color: '#1565c0' }, { a: 'lcd1:SCL', b: 'uno:A5', color: '#f1c40f' }, { a: 'lcd1:VCC', b: 'uno:5V', color: '#d32f2f' }, { a: 'lcd1:GND', b: 'uno:GND.2', color: '#222' },
+          { a: 'dht1:VCC', b: 'uno:5V', color: '#d32f2f' }, { a: 'dht1:GND', b: 'uno:GND.3', color: '#222' }, { a: 'dht1:SDA', b: 'uno:2', color: '#2e7d32' }],
+      }),
+      code: `#include <DHT.h>
+#include <LiquidCrystal_I2C.h>
+
+DHT dht(2, DHT22);
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+void setup() {
+  dht.begin();
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("Hello!");
+}
+
+void loop() {
+
+}
+`,
+    },
+    hints: [
+      'lcd.setCursor(格, 行) 的格與行都從 0 開始；lcd.print(t, 1) 會印出小數 1 位。',
+      '殘影：LCD 只會覆蓋你印的位置。先印 "                " 蓋掉整行，或每次更新前 lcd.clear()。',
+      'lcd.clear() 太頻繁會閃爍；比較好的做法是印完數字後補幾個空白。',
+    ],
+    solution: {
+      mode: 'code',
+      code: `#include <DHT.h>
+#include <LiquidCrystal_I2C.h>
+
+DHT dht(2, DHT22);
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+unsigned long lastRead = 0;
+
+void setup() {
+  dht.begin();
+  lcd.init();
+  lcd.backlight();
+}
+
+void loop() {
+  if (millis() - lastRead < 2000) return;
+  lastRead = millis();
+  float t = dht.readTemperature();
+  float h = dht.readHumidity();
+
+  lcd.setCursor(0, 0);
+  lcd.print("Temp: ");
+  lcd.print(t, 1);
+  lcd.print(" C    ");     // 後面補空白，蓋掉舊的字
+
+  lcd.setCursor(0, 1);
+  lcd.print("Hum:  ");
+  lcd.print(h, 0);
+  lcd.print(" %    ");
+}
+`,
+    },
+    async check(ctx) {
+      const lcd = ctx.parts('lcd')[0], dht = ctx.parts('dht').find(d => ctx.linked(d.id + ':SDA', 'uno:2'));
+      ctx.expect(lcd && dht, 'LCD 與 DHT22 都在', '找不到 LCD 或接在 D2 的 DHT22，可按「重設關卡」');
+      const nums = line => [...line.matchAll(/-?\d+(?:\.\d+)?/g)].map(m => +m[0]);
+      const steps = [[26.5, 62, ''], [31.2, 100, ''], [5.4, 9, '（數字變短，檢查殘影）']];
+      let prev = null;
+      for (const [t, h, note] of steps) {
+        ctx.setProp(dht, 'temp', t); ctx.setProp(dht, 'hum', h);
+        await ctx.wait(2600);
+        const lines = ctx.lcdLines(lcd);
+        ctx.expect(lines, 'LCD 有收到資料', 'LCD 沒有顯示：確認 SDA→A4、SCL→A5，並呼叫 lcd.init()');
+        const [l1, l2] = lines.map(x => x.trimEnd());
+        const n1 = nums(l1), n2 = nums(l2);
+        ctx.expect(n1.length === 1 && Math.abs(n1[0] - t) < 0.06 && /\d\.\d/.test(l1), `溫度 ${t}°C：第 1 行「${l1}」`,
+          n1.length > 1 ? `第 1 行「${l1}」出現多個數字——舊的字沒有清掉${note}` : `第 1 行「${l1}」應該顯示溫度 ${t.toFixed(1)}（小數 1 位）`);
+        ctx.expect(n2.length === 1 && Math.abs(n2[0] - h) < 0.6, `濕度 ${h}%：第 2 行「${l2}」`,
+          n2.length > 1 ? `第 2 行「${l2}」出現多個數字——舊的字沒有清掉${note}` : `第 2 行「${l2}」應該顯示濕度 ${h}`);
+        if (prev && note) {
+          // 數字變短了，畫面上的字也應該跟著變短；沒變短就是殘影
+          ctx.expect(l1.length < prev[0].length, '溫度數字變短後沒有殘影', `第 1 行「${l1}」比上一次「${prev[0]}」沒有變短——後面還留著舊的字（殘影）`);
+          ctx.expect(l2.length <= prev[1].length - 2, '濕度數字變短後沒有殘影', `第 2 行「${l2}」比上一次「${prev[1]}」沒有變短——後面還留著舊的字（殘影）`);
+        }
+        prev = [l1, l2];
+      }
+    },
+  },
+  {
+    id: '6-3', island: 6, title: '燈條音量表', brief: '旋鈕越大亮越多顆：綠、黃、紅',
+    goal: [
+      'WS2812 燈條（8 顆）DIN → <b>D6</b>，旋鈕 SIG → <b>A0</b>（電路已接好）',
+      '旋鈕 0~1023 對應亮 <b>0~8 顆</b>，從第 0 顆開始亮',
+      '顏色：第 0~4 顆<b>綠</b>、第 5~6 顆<b>黃</b>、第 7 顆<b>紅</b>',
+      '沒輪到的燈要<b>熄滅</b>（旋鈕轉小時，多出來的燈要關掉）',
+    ],
+    starter: {
+      mode: 'code',
+      circuit: circuit({
+        parts: [{ id: 'strip1', type: 'strip', x: 380, y: 100 }, { id: 'pot1', type: 'pot', x: 420, y: 480, props: { value: 512 } }],
+        wires: [{ a: 'strip1:DIN', b: 'uno:6', color: '#2e7d32' }, { a: 'strip1:VCC', b: 'uno:5V', color: '#d32f2f' }, { a: 'strip1:GND', b: 'uno:GND.1', color: '#222' },
+          { a: 'pot1:SIG', b: 'uno:A0', color: '#1565c0' }, { a: 'pot1:VCC', b: 'uno:5V', color: '#d32f2f' }, { a: 'pot1:GND', b: 'uno:GND.2', color: '#222' }],
+      }),
+      code: `#include <Adafruit_NeoPixel.h>
+
+Adafruit_NeoPixel strip(8, 6, NEO_GRB + NEO_KHZ800);
+
+void setup() {
+  strip.begin();
+  strip.setPixelColor(0, strip.Color(0, 255, 0));
+  strip.show();          // 設定完要 show() 才會更新
+}
+
+void loop() {
+
+}
+`,
+    },
+    hints: [
+      'int n = map(analogRead(A0), 0, 1023, 0, 8); 算出要亮幾顆。',
+      'for (int i = 0; i < 8; i++) { if (i < n) 設定顏色; else 設成 strip.Color(0, 0, 0); } 最後 strip.show();',
+      '顏色可以寫成函式：uint32_t colorAt(int i) { if (i < 5) return 綠; if (i < 7) return 黃; return 紅; }',
+    ],
+    solution: {
+      mode: 'code',
+      code: `#include <Adafruit_NeoPixel.h>
+
+Adafruit_NeoPixel strip(8, 6, NEO_GRB + NEO_KHZ800);
+
+uint32_t colorAt(int i) {
+  if (i < 5) return strip.Color(0, 200, 0);     // 綠
+  if (i < 7) return strip.Color(200, 160, 0);   // 黃
+  return strip.Color(220, 0, 0);                // 紅
+}
+
+void setup() {
+  strip.begin();
+}
+
+void loop() {
+  int n = map(analogRead(A0), 0, 1023, 0, 8);
+  for (int i = 0; i < 8; i++) {
+    strip.setPixelColor(i, i < n ? colorAt(i) : strip.Color(0, 0, 0));
+  }
+  strip.show();
+  delay(30);
+}
+`,
+    },
+    async check(ctx) {
+      const st = ctx.parts('strip').find(s => ctx.linked(s.id + ':DIN', 'uno:6'));
+      const pot = ctx.parts('pot').find(p => ctx.linked(p.id + ':SIG', 'uno:A0'));
+      ctx.expect(st && pot, '燈條接 D6、旋鈕接 A0', '找不到 DIN 接 D6 的燈條或 SIG 接 A0 的旋鈕，可按「重設關卡」');
+      const lit = px => px.map(p => Math.max(p.r, p.g, p.b) > 30);
+      const read = async v => { ctx.setProp(pot, 'value', v); await ctx.wait(500); return ctx.stripColors(st); };
+      let px = await read(1023);
+      ctx.expect(px, '燈條有收到資料', '燈條沒有反應：記得 strip.begin()，設定完要 strip.show()');
+      let L = lit(px);
+      ctx.expect(L.every(Boolean), '旋鈕最大：8 顆全亮', `旋鈕最大時只亮了 ${L.filter(Boolean).length} 顆，要 8 顆全亮`);
+      const isG = p => p.g > 100 && p.r < 90 && p.b < 90, isY = p => p.r > 100 && p.g > 100 && p.b < 90, isR = p => p.r > 100 && p.g < 90 && p.b < 90;
+      ctx.expect(px.slice(0, 5).every(isG) && px.slice(5, 7).every(isY) && isR(px[7]), '顏色正確：綠 ×5、黃 ×2、紅 ×1',
+        `顏色不對：${px.map(p => isG(p) ? '綠' : isY(p) ? '黃' : isR(p) ? '紅' : `(${p.r},${p.g},${p.b})`).join(' ')}`);
+      px = await read(512); L = lit(px);
+      const n512 = L.filter(Boolean).length;
+      ctx.expect(n512 >= 3 && n512 <= 5 && L.slice(0, n512).every(Boolean), `旋鈕一半：亮 ${n512} 顆`, `旋鈕一半時亮了 ${n512} 顆（要從第 0 顆連續亮約 4 顆）`);
+      ctx.expect(!L.slice(n512).some(Boolean), '旋鈕轉小後，多出來的燈都熄了', '旋鈕轉小後，後面的燈還亮著——沒輪到的燈要設成 Color(0,0,0)');
+      px = await read(0); L = lit(px);
+      ctx.expect(!L.some(Boolean), '旋鈕 0：全部熄滅', `旋鈕轉到 0 還亮著 ${L.filter(Boolean).length} 顆`);
     },
   },
 ];

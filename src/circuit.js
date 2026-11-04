@@ -54,6 +54,9 @@ export class Circuit {
     if (type === 'led') el.color = comp.props.color;
     if (type === 'button') el.color = comp.props.color;
     if (type === 'resistor') el.value = String(comp.props.value);
+    if (type === 'lcd') el.pins = 'i2c';
+    if (type === 'strip') { el.rows = 1; el.cols = 8; }
+    if (type === 'seg7') el.color = comp.props.color;
     wrap.append(label, el);
     this.stage.appendChild(wrap);
     comp.wrap = wrap; comp.el = el; comp.label = label;
@@ -132,6 +135,7 @@ export class Circuit {
         if (c.pressed) uf.union(c.id + ':1.l', c.id + ':2.l');
       }
       if (c.type === 'resistor' && mergeResistors) uf.union(c.id + ':1', c.id + ':2');
+      if (c.type === 'seg7') uf.union(c.id + ':COM.1', c.id + ':COM.2');
       if (c.type === 'relay' && relayStates) uf.union(c.id + ':COM', c.id + (relayStates.get(c.id) ? ':NO' : ':NC'));
     }
     const nets = new Map();
@@ -228,6 +232,16 @@ export class Circuit {
     return d.length ? d[0].v : null;
   }
 
+  // LCD（I2C）：SDA 接 A4、SCL 接 A5 才收得到資料
+  lcdFor(c) {
+    const ok = this.netNodes(c.id + ':SDA').includes('uno:A4') && this.netNodes(c.id + ':SCL').includes('uno:A5');
+    return ok ? this.runtime?.lcds[0] || null : null;
+  }
+  stripFor(c) {
+    const pins = this.unoPinsInNet(c.id + ':DIN');
+    return this.runtime?.strips.find(s => pins.includes(s.pin)) || null;
+  }
+
   // 找與 Arduino 腳位 num 相連、指定類型零件的指定腳
   findConnected(num, type, pin) {
     const nodes = this.netNodes('uno:' + pinNumberToName(num));
@@ -285,6 +299,33 @@ export class Circuit {
           break;
         }
         case 'l298n': el.power = !!this.powered(c.id); break;
+        case 'seg7': {
+          const com = this.level(c.id + ':COM.1');
+          el.values = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'DP'].map(s => { const v = this.level(c.id + ':' + s); return com === 0 && v != null && v > 2.5 ? 1 : 0; });
+          break;
+        }
+        case 'lcd': {
+          const lcd = rt && this.lcdFor(c);
+          const on = !!this.powered(c.id);
+          el.backlight = on && (!lcd || lcd.light);
+          const chars = lcd && on ? lcd.buf : null;
+          const key = chars ? chars.join(',') : '';
+          if (c._lcdKey !== key) { c._lcdKey = key; el.characters = chars ? Uint8Array.from(chars) : new Uint8Array(32).fill(32); }
+          break;
+        }
+        case 'strip': {
+          const st = rt && this.stripFor(c);
+          const px = st && this.powered(c.id) ? st.shown : null;
+          const key = px ? px.join(',') : '';
+          if (c._stripKey !== key) {
+            c._stripKey = key;
+            for (let i = 0; i < 8; i++) {
+              const v = px?.[i] || 0;
+              el.setPixel(0, i, { r: ((v >> 16) & 255) / 255, g: ((v >> 8) & 255) / 255, b: (v & 255) / 255 });
+            }
+          }
+          break;
+        }
         case 'relay': this.struct(); el.on = !!this.relayStates?.get(c.id); break;
         case 'ldr': {
           const v = this.powered(c.id);
