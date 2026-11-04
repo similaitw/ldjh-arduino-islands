@@ -23,6 +23,8 @@ export const PARTS = {
     desc: 'VCC 接 5V、GND 接 GND、SIG 接類比腳位 A0~A5。拖曳旋鈕即可改變數值。' },
   ldr: { tag: 'wokwi-photoresistor-sensor', name: '光敏電阻模組', cat: 'env', prefix: 'ldr', props: { lux: 500, threshold: 512 },
     desc: 'AO 為類比輸出（越暗數值越大），DO 為數位輸出（比門檻暗時為 HIGH）。' },
+  soil: { tag: 'ardu-soil', name: '土壤濕度感測器', cat: 'env', prefix: 'soil', props: { moisture: 50 },
+    desc: 'AO 接類比腳位。越濕讀值越小：完全乾燥約 900、泡在水裡約 200。' },
   dht: { tag: 'wokwi-dht22', name: 'DHT22 溫溼度', cat: 'env', prefix: 'dht', props: { temp: 25, hum: 60 },
     desc: 'SDA 接數位腳位，使用 DHT 函式庫：dht.readTemperature()、dht.readHumidity()。' },
   sr04: { tag: 'wokwi-hc-sr04', name: 'HC-SR04 超音波', cat: 'distance', prefix: 'sr04', props: { distance: 100 },
@@ -51,7 +53,7 @@ export const PARTS = {
 export const COMING = {
   output: [],
   input: ['類比搖桿', '4×4 薄膜鍵盤', '紅外線遙控接收'],
-  env: ['土壤濕度', '雨滴感測', '聲音感測'],
+  env: ['雨滴感測', '聲音感測'],
   distance: ['紅外線循跡', '傾斜開關'],
   motion: ['步進馬達'],
   display: ['OLED 128×64', '四位數七段'],

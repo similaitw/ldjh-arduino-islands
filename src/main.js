@@ -224,6 +224,7 @@ function renderInspector(sel) {
       slider('DO 門檻', 'threshold', 0, 1023, 1);
       box.insertAdjacentHTML('beforeend', '<div class="muted">參考：夜晚 1 lux、室內 300 lux、陰天 1,000 lux、晴天 10,000+ lux</div>');
       break;
+    case 'soil': slider('土壤濕度', 'moisture', 0, 100, 1, v => v, v => v, ' %'); break;
     case 'dht': slider('溫度', 'temp', -40, 80, 0.1, v => v, v => v, ' °C'); slider('濕度', 'hum', 0, 100, 0.5, v => v, v => v, ' %'); break;
     case 'sr04': {
       slider('障礙物距離', 'distance', 2, 450, 1, v => v, v => v, ' cm');

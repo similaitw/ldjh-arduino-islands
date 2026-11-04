@@ -22,7 +22,8 @@ const ms = v => Math.round(v) + ' ms';
 
 function needLed(ctx, pin) {
   const led = ctx.ledOnPin(pin);
-  ctx.expect(led, `找到接在 D${pin} 的 LED`, `找不到接在 D${pin} 的 LED，請檢查接線（可按「重設關卡」恢復原本電路）`);
+  const pn = pin >= 14 ? 'A' + (pin - 14) : 'D' + pin;
+  ctx.expect(led, `找到接在 ${pn} 的 LED`, `找不到接在 ${pn} 的 LED，請檢查接線（可按「重設關卡」恢復原本電路）`);
   return led;
 }
 
@@ -33,7 +34,7 @@ export const ISLANDS = [
   { id: 4, name: '感測星', icon: '🌡️', color: '#e07a5f', theme: '感測器：校正、遲滯、濾波', desc: '真實世界的感測器數值會漂移、跳動、有雜訊。學會用校正、遲滯與濾波，讓機器做出穩定的判斷。' },
   { id: 5, name: '動力星', icon: '⚙️', color: '#9b8ec4', theme: '伺服、馬達與繼電器', desc: '讓東西動起來：伺服的平滑控制、用驅動板控制馬達轉速與方向、用繼電器開關大電流負載。' },
   { id: 6, name: '顯示星', icon: '🖥️', color: '#5fb3b3', theme: '七段、LCD 與燈條', desc: '把資訊顯示出來：七段顯示器查表、LCD 排版與殘影處理、WS2812 全彩燈條。' },
-  { id: 7, name: '專題星', icon: '🏆', color: '#c8963e', theme: '綜合專題', desc: '狀態機與多工整合：倒車雷達、溫控風扇、自動澆花。', locked: true },
+  { id: 7, name: '專題星', icon: '🏆', color: '#c8963e', theme: '綜合專題：狀態機', desc: '把感測、控制、顯示與動力整合成真正的系統：智慧停車場、自動澆花、行人觸動號誌。' },
 ];
 
 export const LEVELS = [
@@ -1319,6 +1320,453 @@ void loop() {
       ctx.expect(!L.slice(n512).some(Boolean), '旋鈕轉小後，多出來的燈都熄了', '旋鈕轉小後，後面的燈還亮著——沒輪到的燈要設成 Color(0,0,0)');
       px = await read(0); L = lit(px);
       ctx.expect(!L.some(Boolean), '旋鈕 0：全部熄滅', `旋鈕轉到 0 還亮著 ${L.filter(Boolean).length} 顆`);
+    },
+  },
+  // ================= 第 7 顆星球 專題星 =================
+  {
+    id: '7-1', island: 7, title: '智慧停車場', brief: '超音波偵測車輛、伺服閘門、LCD 顯示剩餘車位',
+    goal: [
+      '停車場有 <b>3 個車位</b>。入口超音波（TRIG D8、ECHO D7）偵測到車子（<b>&lt; 15 cm</b>）且有空位：閘門（伺服 D9）<b>開到 90°</b>、車位減 1',
+      '車子通過（距離 <b>&gt; 30 cm</b>）後等 <b>1 秒</b>再關閘（0°）；<b>同一台車只能算一次</b>',
+      'LCD 第 1 行顯示 <code>Spaces: N</code>，車位為 0 時改顯示 <code>FULL</code>，並亮起滿位紅燈（D12）',
+      '滿位時車子來了<b>不開門</b>；出口按鈕（D2）代表有車離場，車位加 1',
+      '提示：用 <code>state</code> 變數設計「等車 → 開閘 → 等待關閘」的狀態機',
+    ],
+    starter: {
+      mode: 'code',
+      circuit: circuit({
+        parts: [{ id: 'sr04_1', type: 'sr04', x: 380, y: 470, props: { distance: 100 } }, { id: 'gate', type: 'servo', x: 420, y: 250 },
+          { id: 'lcd1', type: 'lcd', x: 320, y: 30 }, { id: 'btn1', type: 'button', x: 600, y: 260 },
+          { id: 'r1', type: 'resistor', x: 560, y: 400 }, { id: 'led1', type: 'led', x: 640, y: 330, props: { color: 'red' } }],
+        wires: [{ a: 'sr04_1:VCC', b: 'uno:5V', color: '#d32f2f' }, { a: 'sr04_1:GND', b: 'uno:GND.3', color: '#222' }, { a: 'sr04_1:TRIG', b: 'uno:8', color: '#1565c0' }, { a: 'sr04_1:ECHO', b: 'uno:7', color: '#2e7d32' },
+          { a: 'gate:PWM', b: 'uno:9', color: '#e67e22' }, { a: 'gate:V+', b: 'uno:5V', color: '#d32f2f' }, { a: 'gate:GND', b: 'uno:GND.1', color: '#222' },
+          { a: 'lcd1:SDA', b: 'uno:A4', color: '#1565c0' }, { a: 'lcd1:SCL', b: 'uno:A5', color: '#f1c40f' }, { a: 'lcd1:VCC', b: 'uno:5V', color: '#d32f2f' }, { a: 'lcd1:GND', b: 'uno:GND.2', color: '#222' },
+          { a: 'btn1:1.l', b: 'uno:2', color: '#1565c0' }, { a: 'btn1:2.r', b: 'uno:GND.1', color: '#222' },
+          { a: 'uno:12', b: 'r1:1', color: '#e67e22' }, { a: 'r1:2', b: 'led1:A', color: '#e67e22' }, { a: 'led1:C', b: 'uno:GND.1', color: '#222' }],
+      }),
+      code: `#include <Servo.h>
+#include <LiquidCrystal_I2C.h>
+
+const int TRIG = 8, ECHO = 7, BTN = 2, FULL_LED = 12;
+const int CAPACITY = 3;
+
+Servo gate;
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+int spaces = CAPACITY;
+int state = 0;     // 0 = 等車、1 = 閘門開啟（等車通過）、2 = 等待關閘
+
+float readDistance() {
+  digitalWrite(TRIG, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG, LOW);
+  return pulseIn(ECHO, HIGH) / 58.0;
+}
+
+void setup() {
+  pinMode(TRIG, OUTPUT);
+  pinMode(ECHO, INPUT);
+  pinMode(BTN, INPUT_PULLUP);
+  pinMode(FULL_LED, OUTPUT);
+  gate.attach(9);
+  gate.write(0);
+  lcd.init();
+  lcd.backlight();
+}
+
+void loop() {
+
+}
+`,
+    },
+    hints: [
+      '先寫 showSpaces()：在 LCD 印出車位（記得補空白蓋掉舊字），並依 spaces == 0 控制紅燈。',
+      'state 0：偵測到車且 spaces > 0 → 開閘、spaces--、state = 1。state 1：距離 > 30 → 記下時間、state = 2。state 2：滿 1 秒就關閘回到 state 0（期間車子又靠近就回 state 1）。',
+      '出口按鈕要偵測「剛按下」的瞬間，spaces 不能超過 CAPACITY。',
+    ],
+    solution: {
+      mode: 'code',
+      code: `#include <Servo.h>
+#include <LiquidCrystal_I2C.h>
+
+const int TRIG = 8, ECHO = 7, BTN = 2, FULL_LED = 12;
+const int CAPACITY = 3;
+
+Servo gate;
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+int spaces = CAPACITY;
+int state = 0;     // 0 = 等車、1 = 閘門開啟（等車通過）、2 = 等待關閘
+unsigned long t0 = 0;
+int lastBtn = HIGH;
+unsigned long lastPress = 0;
+
+float readDistance() {
+  digitalWrite(TRIG, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG, LOW);
+  return pulseIn(ECHO, HIGH) / 58.0;
+}
+
+void showSpaces() {
+  lcd.setCursor(0, 0);
+  if (spaces > 0) {
+    lcd.print("Spaces: ");
+    lcd.print(spaces);
+    lcd.print("      ");
+  } else {
+    lcd.print("FULL            ");
+  }
+  digitalWrite(FULL_LED, spaces == 0);
+}
+
+void setup() {
+  pinMode(TRIG, OUTPUT);
+  pinMode(ECHO, INPUT);
+  pinMode(BTN, INPUT_PULLUP);
+  pinMode(FULL_LED, OUTPUT);
+  gate.attach(9);
+  gate.write(0);
+  lcd.init();
+  lcd.backlight();
+  showSpaces();
+}
+
+void loop() {
+  // 出口按鈕：有車離場
+  int b = digitalRead(BTN);
+  if (lastBtn == HIGH && b == LOW && millis() - lastPress > 50) {
+    lastPress = millis();
+    if (spaces < CAPACITY) { spaces++; showSpaces(); }
+  }
+  lastBtn = b;
+
+  float d = readDistance();
+  bool car = d > 0 && d < 15;
+
+  if (state == 0) {
+    if (car && spaces > 0) {
+      gate.write(90);
+      spaces--;
+      showSpaces();
+      state = 1;
+    }
+  } else if (state == 1) {
+    if (d > 30) { state = 2; t0 = millis(); }
+  } else if (state == 2) {
+    if (car) state = 1;
+    else if (millis() - t0 >= 1000) { gate.write(0); state = 0; }
+  }
+  delay(30);
+}
+`,
+    },
+    async check(ctx) {
+      const sr = ctx.parts('sr04').find(s => ctx.linked(s.id + ':ECHO', 'uno:7'));
+      const gate = ctx.parts('servo').find(x => ctx.linked(x.id + ':PWM', 'uno:9'));
+      const lcd = ctx.parts('lcd')[0];
+      const btn = ctx.parts('button').find(b => ctx.linked(b.id + ':1.l', 'uno:2') || ctx.linked(b.id + ':2.l', 'uno:2'));
+      const red = ctx.ledOnPin(12);
+      ctx.expect(sr && gate && lcd && btn && red, '超音波、閘門、LCD、出口按鈕、滿位燈都接好了', '有零件沒接好，可按「重設關卡」');
+      const angle = () => ctx.servoAngle(gate) ?? 0;
+      const line = () => (ctx.lcdLines(lcd) || ['', ''])[0];
+      const shows = n => n === 0 ? /FULL/i.test(line()) : new RegExp(`(^|\\D)${n}(\\D|$)`).test(line()) && !/FULL/i.test(line());
+      ctx.setProp(sr, 'distance', 100); await ctx.wait(800);
+      ctx.expect(angle() <= 10, '開機：閘門關閉', `開機時閘門角度 ${Math.round(angle())}°，應該關著（0°）`);
+      ctx.expect(shows(3), `LCD 顯示「${line().trim()}」`, `LCD 第 1 行是「${line().trim()}」，應該顯示剩餘 3 個車位`);
+      for (let k = 1; k <= 3; k++) {
+        ctx.setProp(sr, 'distance', 8); await ctx.wait(900);
+        ctx.expect(angle() >= 80, `第 ${k} 台車到達：閘門打開`, `第 ${k} 台車到了，閘門沒有打開（角度 ${Math.round(angle())}°）`);
+        ctx.expect(shows(3 - k), `車位剩 ${3 - k}：LCD「${line().trim()}」`, `車子停在閘門前 0.9 秒後，LCD 是「${line().trim()}」，應該剩 ${3 - k}${3 - k === 0 ? '（顯示 FULL）' : ''}——同一台車只能算一次`);
+        ctx.setProp(sr, 'distance', 100); await ctx.wait(400);
+        ctx.expect(angle() >= 80, '車子剛通過：閘門還開著', '車子一通過閘門就馬上關了，要等 1 秒');
+        await ctx.wait(1300);
+        ctx.expect(angle() <= 10, '1 秒後關閘', `車子通過 1.7 秒後閘門還開著（${Math.round(angle())}°）`);
+      }
+      ctx.expect(ctx.ledOn(red), '滿位紅燈亮起', '車位滿了，紅燈（D12）沒有亮');
+      ctx.setProp(sr, 'distance', 8); await ctx.wait(1500);
+      ctx.expect(angle() <= 10, '滿位時第 4 台車來：閘門不開', '已經滿位了，閘門卻打開了');
+      ctx.press(btn); await ctx.wait(150); ctx.release(btn); await ctx.wait(1000);
+      ctx.expect(angle() >= 80, '有車離場後，等待中的車可以進場', '按出口按鈕（有車離場）後，等在門口的車沒有被放行');
+      ctx.expect(shows(0) && ctx.ledOn(red), '進場後再次 FULL', `LCD「${line().trim()}」——放行後車位又滿了，應該顯示 FULL`);
+      ctx.setProp(sr, 'distance', 100);
+    },
+  },
+  {
+    id: '7-2', island: 7, title: '自動澆花系統', brief: '濕度遲滯控制，加上最長澆水時間與休息時間',
+    goal: [
+      '土壤濕度感測器 AO → <b>A0</b>（乾燥約 900、濕透約 200），換算成 <b>0~100%</b> 顯示在 LCD 第 1 行',
+      '抽水馬達由繼電器（<b>D4</b>）控制：濕度 <b>&lt; 30%</b> 開始澆水，達到 <b>60%</b> 停止',
+      '安全機制 1：每次最多澆 <b>3 秒</b>（感測器壞掉也不會一直抽水）',
+      '安全機制 2：停止後<b>休息 5 秒</b>讓水滲透，期間就算很乾也不澆',
+      'LCD 第 2 行顯示 <code>Pump: ON</code> 或 <code>Pump: OFF</code>',
+    ],
+    starter: {
+      mode: 'code',
+      circuit: circuit({
+        parts: [{ id: 'soil1', type: 'soil', x: 400, y: 470, props: { moisture: 50 } }, { id: 'lcd1', type: 'lcd', x: 320, y: 30 },
+          { id: 'relay1', type: 'relay', x: 380, y: 280 }, { id: 'pump', type: 'motor', x: 560, y: 220 }],
+        wires: [{ a: 'soil1:AO', b: 'uno:A0', color: '#2e7d32' }, { a: 'soil1:VCC', b: 'uno:5V', color: '#d32f2f' }, { a: 'soil1:GND', b: 'uno:GND.3', color: '#222' },
+          { a: 'lcd1:SDA', b: 'uno:A4', color: '#1565c0' }, { a: 'lcd1:SCL', b: 'uno:A5', color: '#f1c40f' }, { a: 'lcd1:VCC', b: 'uno:5V', color: '#d32f2f' }, { a: 'lcd1:GND', b: 'uno:GND.2', color: '#222' },
+          { a: 'relay1:VCC', b: 'uno:5V', color: '#d32f2f' }, { a: 'relay1:GND', b: 'uno:GND.2', color: '#222' }, { a: 'relay1:IN', b: 'uno:4', color: '#e67e22' },
+          { a: 'relay1:COM', b: 'uno:5V', color: '#d32f2f' }, { a: 'relay1:NO', b: 'pump:M1', color: '#d32f2f' }, { a: 'pump:M2', b: 'uno:GND.1', color: '#222' }],
+      }),
+      code: `#include <LiquidCrystal_I2C.h>
+
+const int SOIL = A0, PUMP = 4;
+const int DRY = 900, WET = 200;          // 校正值
+const int START = 30, STOP = 60;         // 遲滯：30% 開始、60% 停止
+const unsigned long MAX_RUN = 3000;      // 每次最多澆 3 秒
+const unsigned long REST = 5000;         // 停止後休息 5 秒
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+void setup() {
+  pinMode(PUMP, OUTPUT);
+  lcd.init();
+  lcd.backlight();
+}
+
+void loop() {
+
+}
+`,
+    },
+    hints: [
+      'int moisture = constrain(map(analogRead(SOIL), DRY, WET, 0, 100), 0, 100);（DRY 比 WET 大，map 一樣能用）',
+      '狀態：bool pumping、unsigned long since（這次開始澆的時間）、unsigned long restUntil（休息到什麼時候）。',
+      '沒在澆：moisture < START 且 millis() >= restUntil 才開始。正在澆：moisture >= STOP 或 澆滿 MAX_RUN 就停，並設定 restUntil = millis() + REST。',
+    ],
+    solution: {
+      mode: 'code',
+      code: `#include <LiquidCrystal_I2C.h>
+
+const int SOIL = A0, PUMP = 4;
+const int DRY = 900, WET = 200;
+const int START = 30, STOP = 60;
+const unsigned long MAX_RUN = 3000;
+const unsigned long REST = 5000;
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+bool pumping = false;
+unsigned long since = 0;
+unsigned long restUntil = 0;
+
+int readMoisture() {
+  return constrain(map(analogRead(SOIL), DRY, WET, 0, 100), 0, 100);
+}
+
+void setPump(bool on) {
+  pumping = on;
+  digitalWrite(PUMP, on ? HIGH : LOW);
+  since = millis();
+  if (!on) restUntil = millis() + REST;
+}
+
+void setup() {
+  pinMode(PUMP, OUTPUT);
+  lcd.init();
+  lcd.backlight();
+}
+
+void loop() {
+  int m = readMoisture();
+  if (!pumping) {
+    if (m < START && millis() >= restUntil) setPump(true);
+  } else if (m >= STOP || millis() - since >= MAX_RUN) {
+    setPump(false);
+  }
+
+  lcd.setCursor(0, 0);
+  lcd.print("Soil: ");
+  lcd.print(m);
+  lcd.print(" %    ");
+  lcd.setCursor(0, 1);
+  lcd.print(pumping ? "Pump: ON " : "Pump: OFF");
+  delay(100);
+}
+`,
+    },
+    async check(ctx) {
+      const soil = ctx.parts('soil').find(s => ctx.linked(s.id + ':AO', 'uno:A0'));
+      const lcd = ctx.parts('lcd')[0], pump = ctx.parts('motor')[0];
+      ctx.expect(soil && lcd && pump && ctx.parts('relay').some(r => ctx.linked(r.id + ':IN', 'uno:4')), '感測器、LCD、繼電器、抽水馬達都接好了', '有零件沒接好，可按「重設關卡」');
+      const on = () => ctx.motor(pump) > 0.5;
+      const lines = () => ctx.lcdLines(lcd) || ['', ''];
+      const setM = v => ctx.setProp(soil, 'moisture', v);
+      // 物理模擬：抽水時土壤每 0.1 秒變濕 2%
+      let physics = false, alive = true;
+      (async () => { while (alive) { if (physics && on()) setM(Math.min(100, soil.props.moisture + 2)); await ctx.wait(100); } })();
+      try {
+        setM(50); await ctx.wait(700);
+        const n1 = (lines()[0].match(/\d+/) || [])[0];
+        ctx.expect(n1 && Math.abs(+n1 - 50) <= 3, `濕度 50%：LCD「${lines()[0].trim()}」`, `濕度 50% 時 LCD 第 1 行是「${lines()[0].trim()}」——要用 map 把讀值換算成百分比`);
+        ctx.expect(!on() && /OFF/i.test(lines()[1]), '濕度夠：不澆水，LCD 顯示 OFF', '濕度 50% 時不該澆水，LCD 第 2 行要顯示 Pump: OFF');
+        setM(20); await ctx.wait(600);
+        ctx.expect(on() && /ON/i.test(lines()[1]), '濕度降到 20%：開始澆水', '濕度 20% 了還沒開始澆水（或 LCD 沒顯示 ON）');
+        physics = true;
+        const s = await ctx.sample(() => ({ on: on(), m: soil.props.moisture }), 3500, 50);
+        const stopAt = s.find(x => !x.v.on);
+        ctx.expect(stopAt && stopAt.v.m >= 56 && stopAt.v.m <= 68, `澆到 ${stopAt?.v.m}% 停止`, stopAt ? `澆到 ${stopAt.v.m}% 就停了，要到 60%` : '濕度已經超過 60% 還在澆');
+        physics = false;
+        setM(20);
+        const rest = await ctx.sample(on, 3500, 50);
+        ctx.expect(!rest.some(x => x.v), '停止後休息中：就算又變乾也先不澆', '剛停止就又開始澆水了——停止後要休息 5 秒讓水滲透');
+        await ctx.wait(2300);
+        ctx.expect(on(), '休息 5 秒後：恢復澆水', '休息時間過了，土壤還是很乾，卻沒有再次澆水');
+        ctx.note('模擬感測器故障：澆水時濕度都不上升…');
+        const run = await ctx.sample(on, 3800, 50);
+        const offAt = run.findIndex(x => !x.v);
+        ctx.expect(offAt >= 0 && offAt * 50 <= 3400, `澆了約 ${((offAt * 50 + 600) / 1000).toFixed(1)} 秒自動停止（最長 3 秒）`, '濕度一直沒上升，抽水機卻澆超過 3 秒——要加上最長澆水時間');
+      } finally { alive = false; }
+    },
+  },
+  {
+    id: '7-3', island: 7, title: '行人觸動號誌', brief: '按鈕請求過馬路，七段顯示器倒數',
+    goal: [
+      '車道燈：紅 D12、黃 D11、綠 D10；行人燈：紅 <b>A0</b>、綠 <b>A1</b>（類比腳位也能當數位輸出）；請求按鈕 D9；七段顯示器 A~G 接 D2~D8',
+      '平時：<b>車道綠燈、行人紅燈</b>，七段顯示器不亮',
+      '行人按下按鈕 → 車道綠燈<b>至少要亮滿 3 秒</b>才切換 → 黃燈 <b>1 秒</b> → 車道紅燈、行人綠燈',
+      '行人綠燈共 <b>5 秒</b>：前 3 秒恆亮、後 2 秒<b>閃爍</b>；七段顯示器倒數 <b>5、4、3、2、1</b>',
+      '結束後回到車道綠燈、行人紅燈',
+    ],
+    starter: {
+      mode: 'code',
+      circuit: (() => {
+        const kit = (pin, n, x, y, color, gnd) => ({
+          parts: [{ id: 'r' + n, type: 'resistor', x: x - 40, y: y + 70 }, { id: 'led' + n, type: 'led', x: x + 30, y, props: { color } }],
+          wires: [{ a: 'uno:' + pin, b: `r${n}:1`, color: '#e67e22' }, { a: `r${n}:2`, b: `led${n}:A`, color: '#e67e22' }, { a: `led${n}:C`, b: 'uno:' + gnd, color: '#222' }],
+        });
+        return circuit(kit(12, 1, 150, 90, 'red', 'GND.1'), kit(11, 2, 240, 90, 'yellow', 'GND.1'), kit(10, 3, 330, 90, 'green', 'GND.1'),
+          kit('A0', 4, 390, 490, 'red', 'GND.2'), kit('A1', 5, 480, 490, 'green', 'GND.2'), {
+            parts: [{ id: 'seg1', type: 'seg7', x: 600, y: 60 }, { id: 'btn1', type: 'button', x: 560, y: 300 }],
+            wires: [['A', 2], ['B', 3], ['C', 4], ['D', 5], ['E', 6], ['F', 7], ['G', 8]].map(([sg, p], k) => ({ a: 'seg1:' + sg, b: 'uno:' + p, color: ['#d32f2f', '#e67e22', '#f1c40f', '#2e7d32', '#1565c0', '#8e44ad', '#795548'][k] }))
+              .concat([{ a: 'seg1:COM.1', b: 'uno:GND.1', color: '#222' }, { a: 'btn1:1.l', b: 'uno:9', color: '#1565c0' }, { a: 'btn1:2.r', b: 'uno:GND.3', color: '#222' }]),
+          });
+      })(),
+      code: `const int CR = 12, CY = 11, CG = 10;   // 車道燈
+const int PR = A0, PG = A1;              // 行人燈
+const int BTN = 9, FIRST = 2;            // 按鈕、七段 A 接 D2
+
+const byte DIGITS[10][7] = {
+  {1,1,1,1,1,1,0}, {0,1,1,0,0,0,0}, {1,1,0,1,1,0,1}, {1,1,1,1,0,0,1}, {0,1,1,0,0,1,1},
+  {1,0,1,1,0,1,1}, {1,0,1,1,1,1,1}, {1,1,1,0,0,0,0}, {1,1,1,1,1,1,1}, {1,1,1,1,0,1,1}
+};
+
+// 狀態：0 = 車道綠、1 = 車道黃、2 = 行人通行
+int state = 0;
+unsigned long t0 = 0;       // 進入目前狀態的時間
+bool request = false;       // 有人按了按鈕
+
+void setup() {
+  int outs[] = {CR, CY, CG, PR, PG};
+  for (int i = 0; i < 5; i++) pinMode(outs[i], OUTPUT);
+  for (int i = 0; i < 7; i++) pinMode(FIRST + i, OUTPUT);
+  pinMode(BTN, INPUT_PULLUP);
+}
+
+void loop() {
+
+}
+`,
+    },
+    hints: [
+      '寫 enter(int s) { state = s; t0 = millis(); } 切換狀態，用 millis() - t0 算出「這個狀態已經過了多久」。',
+      '按鈕只負責把 request 設成 true；狀態 0 裡判斷「request 且已經綠燈 ≥ 3 秒」才進入狀態 1。',
+      '行人通行時：倒數 = 5 - t / 1000；閃爍 = t >= 3000 時用 (t / 250) % 2 決定亮或滅。',
+    ],
+    solution: {
+      mode: 'code',
+      code: `const int CR = 12, CY = 11, CG = 10;
+const int PR = A0, PG = A1;
+const int BTN = 9, FIRST = 2;
+
+const byte DIGITS[10][7] = {
+  {1,1,1,1,1,1,0}, {0,1,1,0,0,0,0}, {1,1,0,1,1,0,1}, {1,1,1,1,0,0,1}, {0,1,1,0,0,1,1},
+  {1,0,1,1,0,1,1}, {1,0,1,1,1,1,1}, {1,1,1,0,0,0,0}, {1,1,1,1,1,1,1}, {1,1,1,1,0,1,1}
+};
+
+int state = 0;
+unsigned long t0 = 0;
+bool request = false;
+int lastBtn = HIGH;
+
+void enter(int s) { state = s; t0 = millis(); }
+
+void lights(int cr, int cy, int cg, int pr, int pg) {
+  digitalWrite(CR, cr); digitalWrite(CY, cy); digitalWrite(CG, cg);
+  digitalWrite(PR, pr); digitalWrite(PG, pg);
+}
+
+void showDigit(int n) {            // n < 0 表示不顯示
+  for (int s = 0; s < 7; s++) digitalWrite(FIRST + s, n < 0 ? 0 : DIGITS[n][s]);
+}
+
+void setup() {
+  int outs[] = {CR, CY, CG, PR, PG};
+  for (int i = 0; i < 5; i++) pinMode(outs[i], OUTPUT);
+  for (int i = 0; i < 7; i++) pinMode(FIRST + i, OUTPUT);
+  pinMode(BTN, INPUT_PULLUP);
+  enter(0);
+}
+
+void loop() {
+  int b = digitalRead(BTN);
+  if (lastBtn == HIGH && b == LOW) request = true;
+  lastBtn = b;
+
+  unsigned long t = millis() - t0;
+  if (state == 0) {                       // 車道綠
+    lights(0, 0, 1, 1, 0);
+    showDigit(-1);
+    if (request && t >= 3000) { request = false; enter(1); }
+  } else if (state == 1) {                // 車道黃
+    lights(0, 1, 0, 1, 0);
+    if (t >= 1000) enter(2);
+  } else if (state == 2) {                // 行人通行 5 秒
+    bool walk = t < 3000 || (t / 250) % 2 == 0;
+    lights(1, 0, 0, 0, walk);
+    showDigit(5 - t / 1000);
+    if (t >= 5000) { request = false; enter(0); }
+  }
+  delay(10);
+}
+`,
+    },
+    async check(ctx) {
+      const cr = needLed(ctx, 12), cy = needLed(ctx, 11), cg = needLed(ctx, 10), pr = needLed(ctx, 14), pg = needLed(ctx, 15);
+      const seg = ctx.parts('seg7').find(x => ctx.linked(x.id + ':A', 'uno:2'));
+      const btn = ctx.parts('button').find(b => ctx.linked(b.id + ':1.l', 'uno:9') || ctx.linked(b.id + ':2.l', 'uno:9'));
+      ctx.expect(seg && btn, '七段顯示器與請求按鈕都接好了', '找不到七段顯示器（A 接 D2）或接在 D9 的按鈕');
+      const st = () => ['R', 'Y', 'G'].filter((k, i) => ctx.ledOn([cr, cy, cg][i])).join('') + '/' + (ctx.ledOn(pr) ? 'r' : '') + (ctx.ledOn(pg) ? 'g' : '');
+      const click = async () => { ctx.press(btn); await ctx.wait(150); ctx.release(btn); };
+      await ctx.wait(600);
+      ctx.expect(st() === 'G/r', '平時：車道綠、行人紅', `平時的燈號是「${st()}」，應該是車道綠燈、行人紅燈`);
+      ctx.expect(ctx.seg7Digit(seg) === '空白', '平時七段顯示器不亮', '平時七段顯示器應該不亮');
+      await ctx.wait(3000);
+      await click();
+      await ctx.wait(300);
+      ctx.expect(st() === 'Y/r', '按下按鈕（綠燈已超過 3 秒）：車道轉黃燈', `按下按鈕 0.3 秒後是「${st()}」，綠燈已經超過 3 秒，應該轉黃燈`);
+      await ctx.wait(900);
+      ctx.expect(st() === 'R/g', '黃燈 1 秒後：車道紅、行人綠', `黃燈後應該車道紅、行人綠，現在是「${st()}」`);
+      ctx.note('記錄行人通行 5 秒…');
+      const walk = await ctx.sample(() => ({ d: ctx.seg7Digit(seg), g: ctx.ledOn(pg), s: st() }), 4500, 20);
+      const digits = segments(walk, v => v.d).filter(x => x.dur > 300).map(x => x.k);
+      ctx.expect(digits.slice(0, 5).join('') === '54321', `七段倒數：${digits.join(' → ')}`, `七段顯示 ${digits.join(' → ')}，應該是 5 → 4 → 3 → 2 → 1`);
+      const steady = walk.filter(x => x.t < 2700).every(x => x.v.g);
+      const blinkSegs = segments(walk.filter(x => x.t > 3150), v => v.g).filter(x => !x.k && x.dur >= 100).length;
+      ctx.expect(steady, '前 3 秒行人綠燈恆亮', '行人綠燈前 3 秒應該一直亮著');
+      ctx.expect(blinkSegs >= 2, '最後 2 秒行人綠燈閃爍', '最後 2 秒行人綠燈要閃爍（亮、滅交替）');
+      ctx.expect(walk.every(x => x.v.s.startsWith('R/')), '行人通行期間車道一直是紅燈', '行人通行期間車道燈不是紅燈！');
+      await ctx.wait(500);
+      ctx.expect(st() === 'G/r' && ctx.seg7Digit(seg) === '空白', '結束：回到車道綠、行人紅，七段熄滅', `行人時間結束後是「${st()}」，應該回到車道綠、行人紅（七段熄滅）`);
+      await click();
+      const hold = await ctx.sample(st, 2300, 50);
+      ctx.expect(hold.every(x => x.v === 'G/r'), '綠燈才剛亮就按：車道綠燈仍維持到滿 3 秒', '車道綠燈才剛亮，按下按鈕就馬上切換了——綠燈至少要亮滿 3 秒');
+      await ctx.wait(1200);
+      ctx.expect(st() === 'Y/r' || st() === 'R/g', '滿 3 秒後接著切換黃燈', `綠燈滿 3 秒後應該切換，現在是「${st()}」——按下的請求要被記住`);
     },
   },
 ];

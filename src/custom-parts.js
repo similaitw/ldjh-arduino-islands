@@ -107,6 +107,28 @@ class RelayModule extends SvgPart {
   }
 }
 
+// ---------- 土壤濕度感測器（越濕讀值越小） ----------
+class SoilSensor extends SvgPart {
+  constructor() {
+    super();
+    this.pinInfo = [{ name: 'VCC', x: 22, y: 0, signals: [] }, { name: 'GND', x: 36, y: 0, signals: [] }, { name: 'AO', x: 50, y: 0, signals: [] }];
+    this._m = 50;
+  }
+  set moisture(v) { this._m = v; const t = this.querySelector?.('.pct'); if (t) t.textContent = Math.round(v) + '%'; const w = this.querySelector?.('.water'); if (w) w.setAttribute('opacity', (0.15 + v / 120).toFixed(2)); }
+  svg() {
+    return `<svg width="72" height="120" viewBox="0 0 72 120" xmlns="http://www.w3.org/2000/svg">
+      ${[22, 36, 50].map(x => `<rect x="${x - 2}" y="0" width="4" height="10" fill="#d8b04a"/>`).join('')}
+      <rect x="8" y="8" width="56" height="34" rx="3" fill="#1b7a3d" stroke="#0f4f27"/>
+      <text x="36" y="22" font-size="7" fill="#fff" text-anchor="middle" font-family="monospace">SOIL</text>
+      <text class="pct" x="36" y="34" font-size="9" fill="#d8f5c0" text-anchor="middle" font-family="monospace">50%</text>
+      <rect x="6" y="64" width="60" height="56" fill="#7a5230" rx="3"/>
+      <rect class="water" x="6" y="64" width="60" height="56" fill="#3a8fd6" opacity=".55" rx="3"/>
+      <path d="M16 42 L16 110 L24 116 L32 110 L32 42Z M40 42 L40 110 L48 116 L56 110 L56 42Z" fill="#c9a227" stroke="#8a6d12"/>
+    </svg>`;
+  }
+}
+
+customElements.define('ardu-soil', SoilSensor);
 customElements.define('ardu-dc-motor', DcMotor);
 customElements.define('ardu-l298n', L298N);
 customElements.define('ardu-relay', RelayModule);

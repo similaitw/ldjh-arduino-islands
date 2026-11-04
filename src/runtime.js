@@ -237,6 +237,7 @@ export class Runtime {
       __tick: () => rt.tick(),
       LiquidCrystal_I2C, Adafruit_NeoPixel, NEO_GRB: 0, NEO_RGB: 0, NEO_KHZ800: 0,
       __i: v => { const n = Math.trunc(Number(v)); return Number.isFinite(n) ? n : 0; },
+      __idiv: (a, b) => { if (!b) return 0; const n = Math.trunc(a / b); return Number.isFinite(n) ? n : 0; },
       Serial, Servo, DHT,
       HIGH: 1, LOW: 0, INPUT: 'INPUT', OUTPUT: 'OUTPUT', INPUT_PULLUP: 'INPUT_PULLUP', LED_BUILTIN: 13,
       A0: 14, A1: 15, A2: 16, A3: 17, A4: 18, A5: 19, DEC: 10, HEX: 16, OCT: 8, BIN: 2, DHT11: 11, DHT22: 22,

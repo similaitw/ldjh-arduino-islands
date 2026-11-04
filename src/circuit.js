@@ -220,6 +220,8 @@ export class Circuit {
         const ena = this.baseLevel(cid + ':ENA'), frac = ena == null ? 1 : ena / 5;
         const inp = this.baseLevel(cid + (pin === 'OUT1' ? ':IN1' : ':IN2'));
         out.push({ v: (inp ?? 0) > 2.5 ? v * frac : 0, src: cid });
+      } else if (c.type === 'soil' && pin === 'AO') {
+        const v = this.powered(cid); if (v) out.push({ v: (900 - 7 * Math.max(0, Math.min(100, c.props.moisture))) / 1023 * 5, src: cid });
       } else if (c.type === 'pir' && pin === 'OUT') {
         const v = this.powered(cid); if (v) out.push({ v: c.props.motion ? 5 : 0, src: cid });
       }
@@ -299,6 +301,7 @@ export class Circuit {
           break;
         }
         case 'l298n': el.power = !!this.powered(c.id); break;
+        case 'soil': el.moisture = c.props.moisture; break;
         case 'seg7': {
           const com = this.level(c.id + ':COM.1');
           el.values = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'DP'].map(s => { const v = this.level(c.id + ':' + s); return com === 0 && v != null && v > 2.5 ? 1 : 0; });

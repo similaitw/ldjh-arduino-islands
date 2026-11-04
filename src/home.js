@@ -223,7 +223,8 @@ function initScene() {
 
   // 小行星帶：開放區與建設區的分界
   const openIdx = ISLANDS.reduce((k, isl, i) => isl.locked ? k : i, 0);
-  const beltR = (ORBITS[openIdx] + ORBITS[Math.min(openIdx + 1, ORBITS.length - 1)]) / 2;
+  // 全部開放時，小行星帶移到最外圍當作星系邊界
+  const beltR = openIdx >= ORBITS.length - 1 ? ORBITS[ORBITS.length - 1] + 3.4 : (ORBITS[openIdx] + ORBITS[openIdx + 1]) / 2;
   const rocks = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.18, 0), M(0x8a7d6e), 560);
   const r1 = rng(7), dummy = new THREE.Object3D();
   for (let i = 0; i < 560; i++) {
@@ -243,7 +244,7 @@ function initScene() {
   laneLine.computeLineDistances(); laneGroup.add(laneLine);
   // 解鎖門放在「最後一顆開放的星球」與「第一顆建設中」之間
   const lastOpen = ISLANDS.reduce((k, isl, i) => isl.locked ? k : i, 0);
-  const gateY = (lanePos[lastOpen].y + lanePos[Math.min(lastOpen + 1, lanePos.length - 1)].y) / 2;
+  const gateY = lastOpen >= lanePos.length - 1 ? lanePos[lanePos.length - 1].y - 4.5 : (lanePos[lastOpen].y + lanePos[lastOpen + 1].y) / 2;
   const gate = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.16, 0), M(0x8a7d6e), 170);
   for (let i = 0; i < 170; i++) {
     const a = r1() * Math.PI * 2, rr = 3.6 + r1() * 1.2;
@@ -253,7 +254,7 @@ function initScene() {
   }
   laneGroup.add(gate);
   animated.push(t => { gate.rotation.y = t * 0.05; });
-  const LANE_TOP = -5, LANE_BOTTOM = lanePos[lanePos.length - 1].y + 4;
+  const LANE_TOP = -5, LANE_BOTTOM = lanePos[lanePos.length - 1].y + 1;
   let scrollY = LANE_TOP, scrollTarget = LANE_TOP, scrollVel = 0;
 
   // 流星

@@ -107,6 +107,8 @@ export function transpile(source) {
           const [decl, def] = p.split('=');
           const m = decl.trim().match(/(\w+)\s*(\[\s*\w*\s*\])*\s*$/);
           if (!m) throw new TranspileError(`無法解析函式 ${name} 的參數：${p.trim()}`);
+          const ptype = decl.trim().slice(0, -m[0].length).trim().replace(/^const\s+/, '').split(/\s+/).pop();
+          if (ptype && !NON_INT.has(ptype) && new RegExp(`^(${TYPES_RE})$`).test(decl.trim().slice(0, -m[0].length).trim().replace(/^const\s+/, '')) && !m[2]) info.intVars.add(m[1]);
           return def !== undefined ? `${m[1]} = ${def.trim()}` : m[1];
         });
       info.functions.push(name);
@@ -136,6 +138,13 @@ export function transpile(source) {
   s = convertDeclarations(s, info);
 
   // int 變數的指定 → 取整數（模擬整數除法）
+  // 整數 ÷ 整數 要捨去小數（C 的行為）：t / 1000、count / 2 …
+  if (info.intVars.size) {
+    const iv = [...info.intVars].join('|');
+    const opnd = `(?:\\b(?:${iv})\\b|\\b\\d+\\b(?![.\\w]))`;
+    s = s.replace(new RegExp(`(?<![\\w.])(${iv}|\\d+(?![.\\w]))\\s*\\/(?![\\/=*])\\s*(${iv}|\\d+)(?![.\\w(\\[])`, 'g'), (m, a, b) => `__idiv(${a}, ${b})`);
+    void opnd;
+  }
   if (info.intVars.size) s = wrapIntAssignments(s, info.intVars);
 
   // 陣列索引一定是整數：v[n / 2] → v[__i(n / 2)]
